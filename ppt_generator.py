@@ -26,11 +26,11 @@ def create_presentation(content: Dict[str, Any], filename: str) -> io.BytesIO:
     
     # Create slides
     create_title_slide(prs, content['title_slide'])
-    create_problem_slide(prs, content['problem_slide'])
-    create_solution_slide(prs, content['solution_slide'])
+    create_problem_slide(prs, content['problem_slide'], content)
+    create_solution_slide(prs, content['solution_slide'], content)
     create_features_slide(prs, content['features_slide'])
-    create_advantage_slide(prs, content['advantage_slide'])
-    create_audience_slide(prs, content['audience_slide'])
+    create_advantage_slide(prs, content['advantage_slide'], content)
+    create_audience_slide(prs, content['audience_slide'], content)
     create_cta_slide(prs, content['cta_slide'])
     
     # Save to BytesIO
@@ -86,7 +86,7 @@ def create_title_slide(prs: Presentation, content: Dict[str, str]):
         alignment=PP_ALIGN.CENTER
     )
 
-def create_problem_slide(prs: Presentation, content: Dict[str, Any]):
+def create_problem_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
     """Create the problem statement slide."""
     # Use two content layout
     slide_layout = prs.slide_layouts[3]  # Two Content layout
@@ -126,7 +126,7 @@ def create_problem_slide(prs: Presentation, content: Dict[str, Any]):
     
     # Right content - image
     right_content = slide.placeholders[2]
-    image_data = fetch_image_for_slide("problem")
+    image_data = fetch_image_for_slide("problem", presentation_context)
     
     if image_data:
         # Get placeholder dimensions
@@ -152,7 +152,7 @@ def create_problem_slide(prs: Presentation, content: Dict[str, Any]):
         p.alignment = PP_ALIGN.CENTER
         apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
 
-def create_solution_slide(prs: Presentation, content: Dict[str, Any]):
+def create_solution_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
     """Create the solution overview slide."""
     # Use two content layout
     slide_layout = prs.slide_layouts[3]  # Two Content layout
@@ -178,7 +178,7 @@ def create_solution_slide(prs: Presentation, content: Dict[str, Any]):
     
     # Right content - icon or image
     right_content = slide.placeholders[2]
-    image_data = fetch_image_for_slide("solution")
+    image_data = fetch_image_for_slide("solution", presentation_context)
     
     if image_data:
         # Get placeholder dimensions
@@ -256,7 +256,7 @@ def create_features_slide(prs: Presentation, content: Dict[str, Any]):
         cell.fill.background()  # No fill
         # We're not setting any borders to avoid API compatibility issues
 
-def create_advantage_slide(prs: Presentation, content: Dict[str, Any]):
+def create_advantage_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
     """Create the competitive advantage slide."""
     # Use two content layout
     slide_layout = prs.slide_layouts[3]  # Two Content layout
@@ -296,7 +296,7 @@ def create_advantage_slide(prs: Presentation, content: Dict[str, Any]):
     
     # Right content - image
     right_content = slide.placeholders[2]
-    image_data = fetch_image_for_slide("advantage")
+    image_data = fetch_image_for_slide("advantage", presentation_context)
     
     if image_data:
         # Get placeholder dimensions
@@ -321,7 +321,7 @@ def create_advantage_slide(prs: Presentation, content: Dict[str, Any]):
         p.alignment = PP_ALIGN.CENTER
         apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
 
-def create_audience_slide(prs: Presentation, content: Dict[str, Any]):
+def create_audience_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
     """Create the target audience slide."""
     # Use two content layout
     slide_layout = prs.slide_layouts[3]  # Two Content layout
@@ -347,7 +347,7 @@ def create_audience_slide(prs: Presentation, content: Dict[str, Any]):
     
     # Right content - image
     right_content = slide.placeholders[2]
-    image_data = fetch_image_for_slide("audience")
+    image_data = fetch_image_for_slide("audience", presentation_context)
     
     if image_data:
         # Get placeholder dimensions

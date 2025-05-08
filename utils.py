@@ -51,11 +51,11 @@ SLIDE_ICONS = {
 
 # Image search keywords for each slide type
 IMAGE_KEYWORDS = {
-    "problem": ["business challenge", "frustration", "obstacle", "problem", "difficulty"],
-    "solution": ["innovation", "technology solution", "business solution", "digital transformation"],
-    "features": ["software features", "technology features", "saas interface"],
-    "advantage": ["competitive advantage", "business success", "leadership", "winning"],
-    "audience": ["business team", "professional meeting", "corporate team", "business client"]
+    "problem": ["business challenge", "corporate problem", "business obstacle", "productivity problem", "enterprise difficulty", "digital transformation challenge"],
+    "solution": ["business innovation", "enterprise solution", "digital solution", "business technology", "tech innovation", "corporate solution", "saas solution"],
+    "features": ["software interface", "technology dashboard", "business analytics", "enterprise software", "saas product", "tech platform", "digital tool"],
+    "advantage": ["business growth", "competitive edge", "market leadership", "business success", "enterprise advantage", "performance chart", "business strategy"],
+    "audience": ["corporate meeting", "business professionals", "executive team", "business conference", "professional team meeting", "enterprise clients", "b2b meeting"]
 }
 
 # Layout measurements (in inches)
