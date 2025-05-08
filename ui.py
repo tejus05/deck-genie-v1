@@ -23,14 +23,24 @@ def render_ui():
     st.title("Deck Genie: B2B SaaS Presentation Generator")
     st.subheader("Create a minimalist, executive-ready product overview in seconds")
     
+    # Initialize session state for demo toggle
+    if "use_demo" not in st.session_state:
+        st.session_state.use_demo = False
+    
+    # Callback function to handle checkbox changes
+    def toggle_demo():
+        st.session_state.use_demo = not st.session_state.use_demo
+    
+    # Checkbox outside the form to toggle demo data
+    st.checkbox("Use Demo Data", value=st.session_state.use_demo, on_change=toggle_demo)
+    
     with st.form("presentation_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            use_demo = st.checkbox("Use Demo Data", value=False)
+            demo_data = load_demo_data()
             
-            if use_demo:
-                demo_data = load_demo_data()
+            if st.session_state.use_demo:
                 company_name = st.text_input("Company Name", value=demo_data["company_name"])
                 product_name = st.text_input("Product Name", value=demo_data["product_name"])
                 target_audience = st.text_input("Target Audience", value=demo_data["target_audience"])
