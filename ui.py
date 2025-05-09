@@ -9,13 +9,13 @@ from utils import sanitize_filename
 def load_demo_data():
     """Load demo data for presentation fields."""
     return {
-        "company_name": "CloudFlow Solutions",
-        "product_name": "DataSync Pro",
-        "target_audience": "Mid-size enterprise IT departments and data analysts",
-        "problem_statement": "Organizations struggle with fragmented data across multiple systems, leading to inconsistent reporting, duplicate efforts, and missed insights. IT teams spend 30% of their time on manual data transfers, while analysts waste 15 hours weekly reconciling data discrepancies. Decision-makers often work with outdated information, causing costly mistakes and missed opportunities.",
-        "key_features": "Real-time Data Integration: Connect any data source in minutes\nAutomated Workflows: Schedule and automate data transfers\nData Validation Engine: Ensure accuracy with 99.9% precision\nInsight Dashboard: Visualize KPIs and metrics instantly\nCollaborative Interface: Share insights across departments\nEnterprise-grade Security: SOC2 and GDPR compliant",
-        "competitive_advantage": "Unlike competitors who require extensive setup time and coding knowledge, DataSync Pro offers a codeless interface that reduces implementation time by 70%. Our proprietary validation algorithms deliver 3x higher accuracy rates than the industry standard, and our tiered pricing model ensures companies only pay for what they use - averaging 40% cost savings compared to fixed-license competitors.",
-        "call_to_action": "Schedule your personalized demo today"
+        "company_name": "SecureLayer",
+        "product_name": "ThreatGuard AI",
+        "target_audience": "IT security teams at mid-sized enterprises and managed security service providers (MSSPs)",
+        "problem_statement": "Mid-sized enterprises face a 3x higher risk of undetected cyber threats due to limited resources and fragmented security tools. Security teams spend 40% of their time on manual log analysis, leading to delayed responses and increased breach costs. Compliance requirements add complexity, with 62% of organizations struggling to keep up with evolving standards.",
+        "key_features": "AI-Powered Threat Detection: Identify zero-day attacks and anomalies in real time\nAutomated Incident Response: Orchestrate and remediate threats with one click\nUnified Security Dashboard: Centralize alerts, logs, and compliance status\nContinuous Compliance Monitoring: Map controls to SOC2, ISO 27001, and GDPR\nSeamless Integration: Connect with 50+ security and IT tools\n24/7 Expert Support: Access cybersecurity experts anytime",
+        "competitive_advantage": "ThreatGuard AI reduces mean time to detect (MTTD) by 80% and automates 90% of incident response actions. Unlike legacy SIEMs, our platform deploys in under 30 minutes with no coding required. Customers report a 60% reduction in compliance audit preparation time and 2x faster breach containment.",
+        "call_to_action": "Book a free security assessment today"
     }
 
 def render_ui():
