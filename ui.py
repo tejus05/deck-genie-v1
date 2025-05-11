@@ -62,7 +62,6 @@ def render_ui():
                 key_features = st.text_area("Key Features (one per line, max 6)", height=150)
                 competitive_advantage = st.text_area("Competitive Advantage (max 150 words)", height=150)
                 call_to_action = st.text_input("Call to Action")
-            company_logo = st.file_uploader("Upload Company Logo (optional)", type=["png", "jpg", "jpeg"])
         with col2:
             st.markdown("### Instructions")
             st.markdown("""
