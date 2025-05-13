@@ -1,8 +1,11 @@
 import os
 import json
-import anthropic
+import cohere
 from typing import Dict, List, Any
 from utils import get_api_key, truncate_text
+
+# Set the Cohere API key (provided by user)
+API_KEY = "8RCuJ6TE6fjsiojseWEn5Mc6v31fuapFcxKoa0nO"
 
 def generate_presentation_content(
     company_name: str,
@@ -14,7 +17,7 @@ def generate_presentation_content(
     call_to_action: str
 ) -> Dict[str, Any]:
     """
-    Generate content for all slides using Claude API.
+    Generate content for all slides using Cohere API.
     
     Args:
         company_name: The company name
@@ -29,8 +32,8 @@ def generate_presentation_content(
         Dictionary containing structured content for all slides
     """
     try:
-        # Initialize the Anthropic client
-        client = anthropic.Anthropic(api_key=get_api_key("ANTHROPIC_API_KEY"))
+        # Initialize the Cohere client with the API key
+        client = cohere.Client(API_KEY)
         
         # Generate content for each slide
         title_content = generate_title_slide_content(product_name, company_name)
@@ -67,7 +70,7 @@ def generate_title_slide_content(product_name: str, company_name: str) -> Dict[s
         'subtitle': f"by {company_name}"
     }
 
-def generate_problem_slide_content(client: anthropic.Anthropic, problem_statement: str) -> Dict[str, Any]:
+def generate_problem_slide_content(client: cohere.Client, problem_statement: str) -> Dict[str, Any]:
     """Generate content for the problem statement slide."""
     prompt = f"""
     Generate 4-5 concise, detailed bullets for a 'Problem Statement' slide in a B2B SaaS product presentation.
@@ -96,23 +99,16 @@ def generate_problem_slide_content(client: anthropic.Anthropic, problem_statemen
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
+    response = client.generate(
+        model="xlarge",
+        prompt=prompt,
         max_tokens=500,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        temperature=0.3
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
-        
-        result = json.loads(json_content)
+        result = json.loads(response.text)
         
         # Ensure we have the expected keys
         if "title" not in result or "bullets" not in result:
@@ -134,7 +130,7 @@ def generate_problem_slide_content(client: anthropic.Anthropic, problem_statemen
             ]
         }
 
-def generate_solution_slide_content(client: anthropic.Anthropic, product_name: str, problem_statement: str) -> Dict[str, Any]:
+def generate_solution_slide_content(client: cohere.Client, product_name: str, problem_statement: str) -> Dict[str, Any]:
     """Generate content for the solution overview slide."""
     prompt = f"""
     Generate a concise, impactful solution overview paragraph for a B2B SaaS product presentation slide.
@@ -160,23 +156,16 @@ def generate_solution_slide_content(client: anthropic.Anthropic, product_name: s
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
+    response = client.generate(
+        model="xlarge",
+        prompt=prompt,
         max_tokens=400,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        temperature=0.3
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
-        
-        result = json.loads(json_content)
+        result = json.loads(response.text)
         
         # Ensure we have the expected keys
         if "title" not in result or "paragraph" not in result:
@@ -193,7 +182,7 @@ def generate_solution_slide_content(client: anthropic.Anthropic, product_name: s
             "paragraph": f"{product_name} streamlines your data workflow with an intuitive platform that connects all systems. Teams gain instant access to accurate information, reducing reporting time by 70% and enabling data-driven decisions that drive business growth."
         }
 
-def generate_features_slide_content(client: anthropic.Anthropic, features: List[str]) -> Dict[str, Any]:
+def generate_features_slide_content(client: cohere.Client, features: List[str]) -> Dict[str, Any]:
     """Generate content for the key features slide."""
     features_text = "\n".join([f"- {feature}" for feature in features])
     
@@ -225,23 +214,16 @@ def generate_features_slide_content(client: anthropic.Anthropic, features: List[
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
+    response = client.generate(
+        model="xlarge",
+        prompt=prompt,
         max_tokens=600,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        temperature=0.3
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
-        
-        result = json.loads(json_content)
+        result = json.loads(response.text)
         
         # Ensure we have the expected keys
         if "title" not in result or "features" not in result:
@@ -259,7 +241,7 @@ def generate_features_slide_content(client: anthropic.Anthropic, features: List[
             "features": [f"{feature}: Enhanced functionality for better results" for feature in features]
         }
 
-def generate_advantage_slide_content(client: anthropic.Anthropic, competitive_advantage: str) -> Dict[str, Any]:
+def generate_advantage_slide_content(client: cohere.Client, competitive_advantage: str) -> Dict[str, Any]:
     """Generate content for the competitive advantage slide."""
     prompt = f"""
     Generate 3-4 compelling bullet points highlighting competitive advantages for a B2B SaaS product presentation.
@@ -288,23 +270,16 @@ def generate_advantage_slide_content(client: anthropic.Anthropic, competitive_ad
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
+    response = client.generate(
+        model="xlarge",
+        prompt=prompt,
         max_tokens=500,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        temperature=0.3
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
-        
-        result = json.loads(json_content)
+        result = json.loads(response.text)
         
         # Ensure we have the expected keys
         if "title" not in result or "bullets" not in result:
@@ -326,7 +301,7 @@ def generate_advantage_slide_content(client: anthropic.Anthropic, competitive_ad
             ]
         }
 
-def generate_audience_slide_content(client: anthropic.Anthropic, target_audience: str) -> Dict[str, Any]:
+def generate_audience_slide_content(client: cohere.Client, target_audience: str) -> Dict[str, Any]:
     """Generate content for the target audience slide."""
     prompt = f"""
     Generate a concise paragraph describing the ideal customer for a B2B SaaS product presentation.
@@ -348,39 +323,36 @@ def generate_audience_slide_content(client: anthropic.Anthropic, target_audience
     Example format:
     {{
       "title": "Who We Serve",
-      "paragraph": "Mid-size financial services organizations with 100-1000 employees and complex reporting requirements. Our solution serves CFOs, controllers, and finance teams seeking to reduce monthly close time and improve financial visibility across departments."
+      "paragraph": "Mid-size financial services organizations with 100-1000 employees and complex reporting requirements. Our solution serves CFOs, controllers, and finance teams seeking to simplify financial processes."
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=400,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+    response = client.generate(
+        model="xlarge",
+        prompt=prompt,
+        max_tokens=500,
+        temperature=0.3
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
-        
-        result = json.loads(json_content)
+        result = json.loads(response.text)
         
         # Ensure we have the expected keys
         if "title" not in result or "paragraph" not in result:
             raise ValueError("Response missing required keys")
-            
-        # Truncate paragraph if too long
-        result["paragraph"] = truncate_text(result["paragraph"], 300)
         
         return result
     except Exception as e:
         # Fallback if parsing fails
         return {
             "title": "Who We Serve",
-            "paragraph": f"Mid-size enterprises with complex data needs and cross-departmental reporting requirements. Our platform serves CTOs, IT directors, and data teams seeking to streamline workflows, eliminate manual processes, and enable data-driven decision making."
+            "paragraph": "We serve medium to large enterprises in the tech, finance, and retail sectors, focusing on streamlining operations and enhancing profitability."
         }
+
+# Utility function to truncate text if it exceeds a certain length
+def truncate_text(text: str, max_length: int) -> str:
+    """Truncate the text to the specified length if it exceeds."""
+    if len(text) > max_length:
+        return text[:max_length] + "..."
+    return text

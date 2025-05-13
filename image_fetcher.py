@@ -1,7 +1,7 @@
 import requests
 import io
 import json
-import anthropic
+import cohere
 from PIL import Image
 from typing import Optional, Dict, Any, Tuple, List
 from utils import get_api_key, IMAGE_KEYWORDS
@@ -9,7 +9,7 @@ import random
 
 def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Optional[io.BytesIO]:
     """
-    Fetch a relevant image from Unsplash for a slide type.
+    Fetch a relevant image from Pixabay for a slide type.
     
     Args:
         slide_type: Type of slide (problem, solution, advantage, audience)
@@ -20,29 +20,28 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
     """
     try:
         # Get access key from environment
-        access_key = get_api_key("UNSPLASH_API_KEY")
+        access_key = get_api_key("PIXABAY_API_KEY")
         
-        # Generate a focused search query using Claude if context is provided
+        # Generate a focused search query using Cohere if context is provided
         if context and slide_type in context:
-            search_query = generate_image_query_with_claude(slide_type, context)
+            search_query = generate_image_query_with_cohere(slide_type, context)
         else:
             # Fallback to predefined keywords
             keywords = IMAGE_KEYWORDS.get(slide_type, ["business"])
             search_query = random.choice(keywords)
         
         # Build the request URL
-        url = f"https://api.unsplash.com/photos/random?query={search_query}&orientation=landscape"
+        url = f"https://pixabay.com/api/?key={access_key}&q={search_query}&image_type=photo&orientation=horizontal"
         
         # Make the request
-        headers = {"Authorization": f"Client-ID {access_key}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url)
         response.raise_for_status()
         
         # Parse the response
         data = response.json()
         
         # Get the image URL (regular size is a good balance)
-        image_url = data["urls"]["regular"]
+        image_url = data["hits"][0]["webformatURL"]
         
         # Download the image
         image_response = requests.get(image_url)
@@ -57,9 +56,9 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
         print(f"Error fetching image: {str(e)}")
         return None
 
-def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -> str:
+def generate_image_query_with_cohere(slide_type: str, context: Dict[str, Any]) -> str:
     """
-    Use Claude API to generate a relevant image search query based on slide content.
+    Use Cohere API to generate a relevant image search query based on slide content.
     
     Args:
         slide_type: Type of slide
@@ -69,13 +68,13 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
         A search query string optimized for image relevance
     """
     try:
-        # Initialize the Anthropic client
-        client = anthropic.Anthropic(api_key=get_api_key("ANTHROPIC_API_KEY"))
+        # Initialize the Cohere client
+        cohere_client = cohere.Client('8RCuJ6TE6fjsiojseWEn5Mc6v31fuapFcxKoa0nO')  # Your Cohere API key
         
         # Create a prompt based on slide type and content
         if slide_type == "problem":
             prompt = f"""
-            Generate a single, specific Unsplash search query (3-5 words) for a business presentation slide about this problem:
+            Generate a single, specific Pixabay search query (3-5 words) for a business presentation slide about this problem:
             
             Title: {context[slide_type].get('title', 'Problem Statement')}
             
@@ -92,7 +91,7 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
         
         elif slide_type == "solution":
             prompt = f"""
-            Generate a single, specific Unsplash search query (3-5 words) for a business presentation slide about this solution:
+            Generate a single, specific Pixabay search query (3-5 words) for a business presentation slide about this solution:
             
             Title: {context[slide_type].get('title', 'Our Solution')}
             
@@ -111,7 +110,7 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
             
         elif slide_type == "advantage":
             prompt = f"""
-            Generate a single, specific Unsplash search query (3-5 words) for a business presentation slide about competitive advantages:
+            Generate a single, specific Pixabay search query (3-5 words) for a business presentation slide about competitive advantages:
             
             Title: {context[slide_type].get('title', 'Our Advantage')}
             
@@ -128,7 +127,7 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
             
         elif slide_type == "audience":
             prompt = f"""
-            Generate a single, specific Unsplash search query (3-5 words) for a business presentation slide about this target audience:
+            Generate a single, specific Pixabay search query (3-5 words) for a business presentation slide about this target audience:
             
             Title: {context[slide_type].get('title', 'Our Audience')}
             
@@ -145,10 +144,10 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
         
         else:
             # For unknown slide types, create a generic business query
-            company_name = context.get('metadata', {}).get('company_name', '')
-            product_name = context.get('metadata', {}).get('product_name', '')
+            company_name = context.get('metadata', {}).get('company_name', 'Business')
+            product_name = context.get('metadata', {}).get('product_name', 'Product')
             prompt = f"""
-            Generate a single, specific Unsplash search query (3-5 words) for a business presentation slide.
+            Generate a single, specific Pixabay search query (3-5 words) for a business presentation slide.
             
             Company: {company_name}
             Product: {product_name}
@@ -160,44 +159,22 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
             Example: {{"query": "enterprise technology solution"}}
             """
         
-        # Call Claude API
-        response = client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=100,
-            temperature=0.2,
-            system="You create specific, accurate search queries for B2B SaaS presentation images, focusing on enterprise technology and business contexts.",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
+        # Call Cohere API
+        response = cohere_client.generate(
+            model='command-xlarge-20220302', 
+            prompt=prompt, 
+            max_tokens=100, 
+            temperature=0.3
         )
         
-        # Parse the JSON response
-        try:
-            content_start = response.content[0].text.find('{')
-            content_end = response.content[0].text.rfind('}') + 1
-            json_content = response.content[0].text[content_start:content_end]
-            
-            result = json.loads(json_content)
-            
-            # Return the query
-            if "query" in result:
-                return result["query"]
-            else:
-                raise ValueError("Response missing 'query' key")
-                
-        except Exception as e:
-            # Fallback if parsing fails
-            print(f"Error parsing Claude response: {str(e)}")
-            fallback_queries = {
-                "problem": "business challenge",
-                "solution": "business solution",
-                "advantage": "business advantage",
-                "audience": "business meeting"
-            }
-            return fallback_queries.get(slide_type, "business")
+        # Parse the response
+        result = response.generations[0].text.strip()
+        
+        # Return the query
+        return result if result else "business"
             
     except Exception as e:
-        print(f"Error generating image query with Claude: {str(e)}")
+        print(f"Error generating image query with Cohere: {str(e)}")
         # Fallback to predefined keywords
         keywords = IMAGE_KEYWORDS.get(slide_type, ["business"])
         return random.choice(keywords)
