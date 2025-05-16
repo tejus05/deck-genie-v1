@@ -1,6 +1,6 @@
 streamlit>=1.28.0
 python-pptx>=0.6.19
 python-dotenv>=0.21.1
-cohere>=4.0.0
 requests>=2.28.2
-Pillow>=9.5.0  # Keep this since you're still using Pillow for image processing
+Pillow>=9.5.0
+anthropic>=0.3.0    
