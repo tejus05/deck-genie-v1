@@ -122,35 +122,90 @@ def render_ui():
             for error in errors:
                 st.error(error)
         else:
-            with st.spinner("Generating your presentation..."):
-                try:
-                    # Process input data
-                    features_list = [f for f in key_features.strip().split('\n') if f]
-                    
-                    # Generate presentation content using Gemini
-                    content = generate_presentation_content(
-                        company_name=company_name,
-                        product_name=product_name,
-                        target_audience=target_audience,
-                        problem_statement=problem_statement,
-                        key_features=features_list,
-                        competitive_advantage=competitive_advantage,
-                        call_to_action=call_to_action
-                    )
-                    
-                    # Create the PowerPoint presentation
-                    filename = f"{sanitize_filename(company_name)}_{sanitize_filename(product_name)}_Overview.pptx"
-                    
-                    presentation_buffer = create_presentation(content, filename)
-                    
-                    # Provide download button
-                    st.success("✅ Your presentation is ready!")
-                    st.download_button(
-                        label="Download Presentation",
-                        data=presentation_buffer,
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                    )
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-                    st.exception(e)
+            try:
+                    # Set up a modern progress tracking system
+                    progress_container = st.container()
+                    with progress_container:
+                        # Create a progress bar
+                        progress_bar = st.progress(0)
+                        progress_status = st.empty()
+                        progress_detail = st.empty()
+                        
+                        # Step 1: Initialize
+                        progress_status.markdown("### 🚀 Starting the creation process...")
+                        progress_detail.markdown("_Analyzing your inputs and preparing the magic_")
+                        progress_bar.progress(10)
+                        st.balloons()  # Add a fun element at the start
+                        
+                        # Process input data
+                        features_list = [f for f in key_features.strip().split('\n') if f]
+                        
+                        # Step 2: Content generation
+                        progress_status.markdown("### 🧠 Crafting your presentation content...")
+                        progress_detail.markdown("_Our AI is creating compelling narratives for your slides_")
+                        progress_bar.progress(30)
+                        
+                        # Generate presentation content using Gemini
+                        content = generate_presentation_content(
+                            company_name=company_name,
+                            product_name=product_name,
+                            target_audience=target_audience,
+                            problem_statement=problem_statement,
+                            key_features=features_list,
+                            competitive_advantage=competitive_advantage,
+                            call_to_action=call_to_action
+                        )
+                        
+                        # Step 3: Designing slides
+                        progress_status.markdown("### 🎨 Designing your slides...")
+                        progress_detail.markdown("_Creating a visually appealing presentation that stands out_")
+                        progress_bar.progress(60)
+                        
+                        # Step 4: Finalizing
+                        progress_status.markdown("### 📊 Assembling your presentation...")
+                        progress_detail.markdown("_Putting everything together in a cohesive package_")
+                        progress_bar.progress(80)
+                        
+                        # Create the PowerPoint presentation
+                        filename = f"{sanitize_filename(company_name)}_{sanitize_filename(product_name)}_Overview.pptx"
+                        presentation_buffer = create_presentation(content, filename)
+                        
+                        # Final step
+                        progress_status.markdown("### ✨ Polishing final details...")
+                        progress_detail.markdown("_Adding those final touches of excellence_")
+                        progress_bar.progress(100)
+                        
+                        # Clear the progress elements
+                        progress_container.empty()
+                        
+                        # Provide download button with celebration
+                        st.success("✅ Your presentation is ready!")
+                        
+                        # Add a more engaging download section
+                        download_col1, download_col2 = st.columns([3, 1])
+                        
+                        with download_col1:
+                            st.markdown("### 🎉 Your executive-ready presentation is complete!")
+                            st.markdown("_Professional, compelling, and ready to impress your stakeholders_")
+                        
+                        # Use custom styling for the download button to make it stand out
+                        with download_col2:
+                            st.download_button(
+                                label="📥 Download Presentation",
+                                data=presentation_buffer,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                use_container_width=True,
+                            )
+                        
+                        # Add helpful tips after download
+                        with st.expander("💡 Tips for presenting your deck"):
+                            st.markdown("""
+                            - **Start strong**: Begin with the problem statement to capture attention
+                            - **Be concise**: Each slide should convey one key message
+                            - **Practice timing**: Aim for 2-3 minutes per slide
+                            - **End with action**: Emphasize your call to action at the end
+                            """)
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+                st.exception(e)
