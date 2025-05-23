@@ -1,6 +1,6 @@
 import os
 import json
-import anthropic
+import google.generativeai as genai
 from typing import Dict, List, Any
 from utils import get_api_key, truncate_text
 
@@ -14,7 +14,7 @@ def generate_presentation_content(
     call_to_action: str
 ) -> Dict[str, Any]:
     """
-    Generate content for all slides using Claude API.
+    Generate content for all slides using Gemini API.
     
     Args:
         company_name: The company name
@@ -29,16 +29,16 @@ def generate_presentation_content(
         Dictionary containing structured content for all slides
     """
     try:
-        # Initialize the Anthropic client
-        client = anthropic.Anthropic(api_key=get_api_key("ANTHROPIC_API_KEY"))
+        # Configure the Gemini API
+        genai.configure(api_key=get_api_key("GEMINI_API_KEY"))
         
         # Generate content for each slide
         title_content = generate_title_slide_content(product_name, company_name)
-        problem_content = generate_problem_slide_content(client, problem_statement)
-        solution_content = generate_solution_slide_content(client, product_name, problem_statement)
-        features_content = generate_features_slide_content(client, key_features)
-        advantage_content = generate_advantage_slide_content(client, competitive_advantage)
-        audience_content = generate_audience_slide_content(client, target_audience)
+        problem_content = generate_problem_slide_content(problem_statement)
+        solution_content = generate_solution_slide_content(product_name, problem_statement)
+        features_content = generate_features_slide_content(key_features)
+        advantage_content = generate_advantage_slide_content(competitive_advantage)
+        audience_content = generate_audience_slide_content(target_audience)
         cta_content = {'call_to_action': call_to_action}
         
         # Assemble all content
@@ -67,7 +67,7 @@ def generate_title_slide_content(product_name: str, company_name: str) -> Dict[s
         'subtitle': f"by {company_name}"
     }
 
-def generate_problem_slide_content(client: anthropic.Anthropic, problem_statement: str) -> Dict[str, Any]:
+def generate_problem_slide_content(problem_statement: str) -> Dict[str, Any]:
     """Generate content for the problem statement slide."""
     prompt = f"""
     Generate 4-5 concise, detailed bullets for a 'Problem Statement' slide in a B2B SaaS product presentation.
@@ -94,34 +94,41 @@ def generate_problem_slide_content(client: anthropic.Anthropic, problem_statemen
         "Data silos lead to 23% duplication of work across teams."
       ]
     }}
+    
+    You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=500,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config={"temperature": 0.3, "max_output_tokens": 500}
+    )
+    
+    response = model.generate_content(
+        [
+            {"role": "user", "parts": [prompt]},
         ]
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
+        response_text = response.text
+        content_start = response_text.find('{')
+        content_end = response_text.rfind('}') + 1
         
-        result = json.loads(json_content)
-        
-        # Ensure we have the expected keys
-        if "title" not in result or "bullets" not in result:
-            raise ValueError("Response missing required keys")
+        if content_start >= 0 and content_end > content_start:
+            json_content = response_text[content_start:content_end]
+            result = json.loads(json_content)
             
-        # Limit to max 5 bullets
-        result["bullets"] = result["bullets"][:5]
-        
-        return result
+            # Ensure we have the expected keys
+            if "title" not in result or "bullets" not in result:
+                raise ValueError("Response missing required keys")
+                
+            # Limit to max 5 bullets
+            result["bullets"] = result["bullets"][:5]
+            
+            return result
+        else:
+            raise ValueError("No valid JSON found in response")
     except Exception as e:
         # Fallback if parsing fails
         return {
@@ -134,7 +141,7 @@ def generate_problem_slide_content(client: anthropic.Anthropic, problem_statemen
             ]
         }
 
-def generate_solution_slide_content(client: anthropic.Anthropic, product_name: str, problem_statement: str) -> Dict[str, Any]:
+def generate_solution_slide_content(product_name: str, problem_statement: str) -> Dict[str, Any]:
     """Generate content for the solution overview slide."""
     prompt = f"""
     Generate a concise, impactful solution overview paragraph for a B2B SaaS product presentation slide.
@@ -160,32 +167,37 @@ def generate_solution_slide_content(client: anthropic.Anthropic, product_name: s
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=400,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config={"temperature": 0.3, "max_output_tokens": 400}
+    )
+    
+    response = model.generate_content(
+        [
+            {"role": "user", "parts": [prompt]},
         ]
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
+        response_text = response.text
+        content_start = response_text.find('{')
+        content_end = response_text.rfind('}') + 1
         
-        result = json.loads(json_content)
-        
-        # Ensure we have the expected keys
-        if "title" not in result or "paragraph" not in result:
-            raise ValueError("Response missing required keys")
+        if content_start >= 0 and content_end > content_start:
+            json_content = response_text[content_start:content_end]
+            result = json.loads(json_content)
             
-        # Truncate paragraph if too long
-        result["paragraph"] = truncate_text(result["paragraph"], 300)
-        
-        return result
+            # Ensure we have the expected keys
+            if "title" not in result or "paragraph" not in result:
+                raise ValueError("Response missing required keys")
+                
+            # Truncate paragraph if too long
+            result["paragraph"] = truncate_text(result["paragraph"], 300)
+            
+            return result
+        else:
+            raise ValueError("No valid JSON found in response")
     except Exception as e:
         # Fallback if parsing fails
         return {
@@ -193,7 +205,7 @@ def generate_solution_slide_content(client: anthropic.Anthropic, product_name: s
             "paragraph": f"{product_name} streamlines your data workflow with an intuitive platform that connects all systems. Teams gain instant access to accurate information, reducing reporting time by 70% and enabling data-driven decisions that drive business growth."
         }
 
-def generate_features_slide_content(client: anthropic.Anthropic, features: List[str]) -> Dict[str, Any]:
+def generate_features_slide_content(features: List[str]) -> Dict[str, Any]:
     """Generate content for the key features slide."""
     features_text = "\n".join([f"- {feature}" for feature in features])
     
@@ -225,33 +237,38 @@ def generate_features_slide_content(client: anthropic.Anthropic, features: List[
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=600,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config={"temperature": 0.3, "max_output_tokens": 600}
+    )
+    
+    response = model.generate_content(
+        [
+            {"role": "user", "parts": [prompt]},
         ]
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
+        response_text = response.text
+        content_start = response_text.find('{')
+        content_end = response_text.rfind('}') + 1
         
-        result = json.loads(json_content)
-        
-        # Ensure we have the expected keys
-        if "title" not in result or "features" not in result:
-            raise ValueError("Response missing required keys")
+        if content_start >= 0 and content_end > content_start:
+            json_content = response_text[content_start:content_end]
+            result = json.loads(json_content)
             
-        # Ensure we have the right number of features
-        if len(result["features"]) != len(features):
-            result["features"] = [f"{feature}: Enhanced functionality for better results" for feature in features]
-        
-        return result
+            # Ensure we have the expected keys
+            if "title" not in result or "features" not in result:
+                raise ValueError("Response missing required keys")
+                
+            # Ensure we have the right number of features
+            if len(result["features"]) != len(features):
+                result["features"] = [f"{feature}: Enhanced functionality for better results" for feature in features]
+            
+            return result
+        else:
+            raise ValueError("No valid JSON found in response")
     except Exception as e:
         # Fallback if parsing fails
         return {
@@ -259,7 +276,7 @@ def generate_features_slide_content(client: anthropic.Anthropic, features: List[
             "features": [f"{feature}: Enhanced functionality for better results" for feature in features]
         }
 
-def generate_advantage_slide_content(client: anthropic.Anthropic, competitive_advantage: str) -> Dict[str, Any]:
+def generate_advantage_slide_content(competitive_advantage: str) -> Dict[str, Any]:
     """Generate content for the competitive advantage slide."""
     prompt = f"""
     Generate 3-4 compelling bullet points highlighting competitive advantages for a B2B SaaS product presentation.
@@ -288,32 +305,37 @@ def generate_advantage_slide_content(client: anthropic.Anthropic, competitive_ad
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=500,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config={"temperature": 0.3, "max_output_tokens": 500}
+    )
+    
+    response = model.generate_content(
+        [
+            {"role": "user", "parts": [prompt]},
         ]
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
+        response_text = response.text
+        content_start = response_text.find('{')
+        content_end = response_text.rfind('}') + 1
         
-        result = json.loads(json_content)
-        
-        # Ensure we have the expected keys
-        if "title" not in result or "bullets" not in result:
-            raise ValueError("Response missing required keys")
+        if content_start >= 0 and content_end > content_start:
+            json_content = response_text[content_start:content_end]
+            result = json.loads(json_content)
             
-        # Limit to max 4 bullets
-        result["bullets"] = result["bullets"][:4]
-        
-        return result
+            # Ensure we have the expected keys
+            if "title" not in result or "bullets" not in result:
+                raise ValueError("Response missing required keys")
+                
+            # Limit to max 4 bullets
+            result["bullets"] = result["bullets"][:4]
+            
+            return result
+        else:
+            raise ValueError("No valid JSON found in response")
     except Exception as e:
         # Fallback if parsing fails
         return {
@@ -326,7 +348,7 @@ def generate_advantage_slide_content(client: anthropic.Anthropic, competitive_ad
             ]
         }
 
-def generate_audience_slide_content(client: anthropic.Anthropic, target_audience: str) -> Dict[str, Any]:
+def generate_audience_slide_content(target_audience: str) -> Dict[str, Any]:
     """Generate content for the target audience slide."""
     prompt = f"""
     Generate a concise paragraph describing the ideal customer for a B2B SaaS product presentation.
@@ -352,32 +374,37 @@ def generate_audience_slide_content(client: anthropic.Anthropic, target_audience
     }}
     """
     
-    response = client.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=400,
-        temperature=0.3,
-        system="You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.",
-        messages=[
-            {"role": "user", "content": prompt}
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config={"temperature": 0.3, "max_output_tokens": 400}
+    )
+    
+    response = model.generate_content(
+        [
+            {"role": "user", "parts": [prompt]},
         ]
     )
     
     # Parse the JSON response
     try:
-        content_start = response.content[0].text.find('{')
-        content_end = response.content[0].text.rfind('}') + 1
-        json_content = response.content[0].text[content_start:content_end]
+        response_text = response.text
+        content_start = response_text.find('{')
+        content_end = response_text.rfind('}') + 1
         
-        result = json.loads(json_content)
-        
-        # Ensure we have the expected keys
-        if "title" not in result or "paragraph" not in result:
-            raise ValueError("Response missing required keys")
+        if content_start >= 0 and content_end > content_start:
+            json_content = response_text[content_start:content_end]
+            result = json.loads(json_content)
             
-        # Truncate paragraph if too long
-        result["paragraph"] = truncate_text(result["paragraph"], 300)
-        
-        return result
+            # Ensure we have the expected keys
+            if "title" not in result or "paragraph" not in result:
+                raise ValueError("Response missing required keys")
+                
+            # Truncate paragraph if too long
+            result["paragraph"] = truncate_text(result["paragraph"], 300)
+            
+            return result
+        else:
+            raise ValueError("No valid JSON found in response")
     except Exception as e:
         # Fallback if parsing fails
         return {

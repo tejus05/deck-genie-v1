@@ -127,7 +127,7 @@ def render_ui():
                     # Process input data
                     features_list = [f for f in key_features.strip().split('\n') if f]
                     
-                    # Generate presentation content using Claude
+                    # Generate presentation content using Gemini
                     content = generate_presentation_content(
                         company_name=company_name,
                         product_name=product_name,

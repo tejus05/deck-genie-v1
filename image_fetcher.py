@@ -1,7 +1,7 @@
 import requests
 import io
 import json
-import anthropic
+import google.generativeai as genai
 from PIL import Image
 from typing import Optional, Dict, Any, Tuple, List
 from utils import get_api_key, IMAGE_KEYWORDS
@@ -22,9 +22,9 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
         # Get access key from environment
         access_key = get_api_key("UNSPLASH_API_KEY")
         
-        # Generate a focused search query using Claude if context is provided
+        # Generate a focused search query using Gemini if context is provided
         if context and slide_type in context:
-            search_query = generate_image_query_with_claude(slide_type, context)
+            search_query = generate_image_query_with_gemini(slide_type, context)
         else:
             # Fallback to predefined keywords
             keywords = IMAGE_KEYWORDS.get(slide_type, ["business"])
@@ -57,9 +57,9 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
         print(f"Error fetching image: {str(e)}")
         return None
 
-def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -> str:
+def generate_image_query_with_gemini(slide_type: str, context: Dict[str, Any]) -> str:
     """
-    Use Claude API to generate a relevant image search query based on slide content.
+    Use Gemini API to generate a relevant image search query based on slide content.
     
     Args:
         slide_type: Type of slide
@@ -69,8 +69,8 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
         A search query string optimized for image relevance
     """
     try:
-        # Initialize the Anthropic client
-        client = anthropic.Anthropic(api_key=get_api_key("ANTHROPIC_API_KEY"))
+        # Configure the Gemini API
+        genai.configure(api_key=get_api_key("GEMINI_API_KEY"))
         
         # Create a prompt based on slide type and content
         if slide_type == "problem":
@@ -160,34 +160,42 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
             Example: {{"query": "enterprise technology solution"}}
             """
         
-        # Call Claude API
-        response = client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=100,
-            temperature=0.2,
-            system="You create specific, accurate search queries for B2B SaaS presentation images, focusing on enterprise technology and business contexts.",
-            messages=[
-                {"role": "user", "content": prompt}
+        # Call Gemini API
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            generation_config={"temperature": 0.2, "max_output_tokens": 100}
+        )
+        
+        # Include system instruction in the prompt instead of as a parameter
+        prompt = "You create specific, accurate search queries for B2B SaaS presentation images, focusing on enterprise technology and business contexts.\n\n" + prompt
+        
+        response = model.generate_content(
+            [
+                {"role": "user", "parts": [prompt]},
             ]
         )
         
         # Parse the JSON response
         try:
-            content_start = response.content[0].text.find('{')
-            content_end = response.content[0].text.rfind('}') + 1
-            json_content = response.content[0].text[content_start:content_end]
+            response_text = response.text
+            content_start = response_text.find('{')
+            content_end = response_text.rfind('}') + 1
             
-            result = json.loads(json_content)
-            
-            # Return the query
-            if "query" in result:
-                return result["query"]
+            if content_start >= 0 and content_end > content_start:
+                json_content = response_text[content_start:content_end]
+                result = json.loads(json_content)
+                
+                # Return the query
+                if "query" in result:
+                    return result["query"]
+                else:
+                    raise ValueError("Response missing 'query' key")
             else:
-                raise ValueError("Response missing 'query' key")
+                raise ValueError("No valid JSON found in response")
                 
         except Exception as e:
             # Fallback if parsing fails
-            print(f"Error parsing Claude response: {str(e)}")
+            print(f"Error parsing Gemini response: {str(e)}")
             fallback_queries = {
                 "problem": "business challenge",
                 "solution": "business solution",
@@ -197,7 +205,7 @@ def generate_image_query_with_claude(slide_type: str, context: Dict[str, Any]) -
             return fallback_queries.get(slide_type, "business")
             
     except Exception as e:
-        print(f"Error generating image query with Claude: {str(e)}")
+        print(f"Error generating image query with Gemini: {str(e)}")
         # Fallback to predefined keywords
         keywords = IMAGE_KEYWORDS.get(slide_type, ["business"])
         return random.choice(keywords)
