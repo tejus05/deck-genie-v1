@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 import copy
 import io
 from PIL import Image
-from streamlit_sortables import sort_items
+# from streamlit_sortables import sort_items
 
 class SlideEditor:
     """Handles slide editing, reordering, and deletion functionality."""
@@ -64,10 +64,6 @@ class SlideEditor:
         # Slide reordering section
         st.markdown("### 🔄 Reorder Slides")
         self._render_slide_reordering()
-        
-        # Individual slide editors
-        st.markdown("### ✏️ Edit Slide Content")
-        self._render_individual_slide_editors()
         
         # Download buttons
         self._render_download_buttons(original_content)
@@ -448,7 +444,7 @@ class SlideEditor:
                 self._update_preview_if_available()
     
     def _render_download_buttons(self, original_content: Dict[str, Any]):
-        """Render download buttons for original and modified presentations."""
+        """Render download buttons for original and reordered presentations."""
         st.markdown("---")
         st.markdown("## 📥 Download Options")
         
@@ -481,37 +477,37 @@ class SlideEditor:
             except Exception as e:
                 st.error(f"Error creating original presentation: {str(e)}")
         
-        # Modified presentation download
+        # Reordered presentation download
         with col2:
-            st.markdown("### Customized Presentation")
+            st.markdown("### Reordered Presentation")
             if st.session_state.has_modifications:
-                st.markdown("✅ **Changes detected** - Download your customized version")
+                st.markdown("✅ **Slide order changed** - Download your reordered version")
                 
                 try:
                     modified_content = self._prepare_modified_content(original_content)
-                    modified_filename = f"{sanitize_filename(original_content['metadata']['company_name'])}_{sanitize_filename(original_content['metadata']['product_name'])}_Custom.pptx"
+                    modified_filename = f"{sanitize_filename(original_content['metadata']['company_name'])}_{sanitize_filename(original_content['metadata']['product_name'])}_Reordered.pptx"
                     
-                    # Create modified presentation
+                    # Create reordered presentation
                     from image_manager import ImageManager
                     image_manager = ImageManager(
-                        st.session_state.get('uploaded_images', {}),
+                        st.session_state.get('original_images_cache', {}),
                         st.session_state.get('original_images_cache', {})
                     )
                     modified_buffer = self._create_modified_presentation(modified_content, modified_filename, image_manager)
                     
                     st.download_button(
-                        label="📥 Download Customized",
+                        label="📥 Download Reordered",
                         data=modified_buffer,
                         file_name=modified_filename,
                         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                         use_container_width=True,
                     )
                 except Exception as e:
-                    st.error(f"Error creating customized presentation: {str(e)}")
+                    st.error(f"Error creating reordered presentation: {str(e)}")
             else:
-                st.markdown("ℹ️ Make changes above to enable customized download")
+                st.markdown("ℹ️ Reorder slides above to enable download")
                 st.button(
-                    "📥 Download Customized",
+                    "📥 Download Reordered",
                     disabled=True,
                     use_container_width=True,
                 )

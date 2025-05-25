@@ -298,44 +298,36 @@ def render_ui():
         slide_editor.initialize_editor_state(st.session_state.original_content)
         slide_editor.preview_generator = preview_generator
         
-        # Create tabs but ensure state is fully initialized before content
-        tab1, tab2 = st.tabs(["🔄 Reorder Slides", "✏️ Edit Content"])
-        
-        # Ensure slide_order is properly initialized before tab content
+        # Ensure slide_order is properly initialized before reordering
         if 'slide_order' not in st.session_state:
             st.session_state.slide_order = slide_editor.slide_keys.copy()
         
-        with tab1:
-            st.markdown("### Reorder your slides using the buttons below")
-            slide_editor._render_slide_reordering()
+        st.markdown("### Reorder your slides using the buttons below")
+        slide_editor._render_slide_reordering()
         
-        with tab2:
-            st.markdown("### Click on any slide to edit its content")
-            slide_editor._render_individual_slide_editors()
-        
-        # Customized download button (only shown if modifications exist)
+        # Download reordered presentation
         if st.session_state.get('has_modifications', False):
             st.markdown("---")
-            st.markdown("## 🎨 Download Customized Version")
-            st.markdown("✅ **Changes detected** - Download your customized presentation")
+            st.markdown("## 🔄 Download Reordered Version")
+            st.markdown("✅ **Slide order changed** - Download your reordered presentation")
             
             try:
                 modified_content = slide_editor._prepare_modified_content(st.session_state.original_content)
-                modified_filename = f"{sanitize_filename(st.session_state.original_content['metadata']['company_name'])}_{sanitize_filename(st.session_state.original_content['metadata']['product_name'])}_Custom.pptx"
+                modified_filename = f"{sanitize_filename(st.session_state.original_content['metadata']['company_name'])}_{sanitize_filename(st.session_state.original_content['metadata']['product_name'])}_Reordered.pptx"
                 
                 from image_manager import ImageManager
                 image_manager = ImageManager(
-                    st.session_state.get('uploaded_images', {}),
+                    st.session_state.get('original_images_cache', {}),
                     st.session_state.get('original_images_cache', {})
                 )
                 modified_buffer = slide_editor._create_modified_presentation(modified_content, modified_filename, image_manager)
                 
                 st.download_button(
-                    label="📥 Download Customized Presentation",
+                    label="📥 Download Reordered Presentation",
                     data=modified_buffer,
                     file_name=modified_filename,
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                     use_container_width=True,
                 )
             except Exception as e:
-                st.error(f"Error creating customized presentation: {str(e)}")
+                st.error(f"Error creating reordered presentation: {str(e)}")

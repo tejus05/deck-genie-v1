@@ -67,7 +67,7 @@ class SlidePreviewGenerator:
             time.sleep(0.1)
     
     def render_all_preview_slides(self):
-        """Render all preview slides."""
+        """Render all preview slides with equal dimensions."""
         if not self.preview_container:
             self.preview_container = st.empty()
         
@@ -80,8 +80,9 @@ class SlidePreviewGenerator:
             num_slides = len(slides)
             num_rows = (num_slides + 3) // 4  # Ceiling division
             
+            # Use equal width for all columns
             for row in range(num_rows):
-                cols = st.columns(4)
+                cols = st.columns([1, 1, 1, 1])  # Equal width distribution
                 for col_idx in range(4):
                     slide_idx = row * 4 + col_idx
                     if slide_idx < num_slides:
@@ -90,7 +91,7 @@ class SlidePreviewGenerator:
                             self.render_single_slide_preview(slide)
     
     def render_single_slide_preview(self, slide: Dict[str, Any]):
-        """Render a single slide preview card with better styling."""
+        """Render a single slide preview card with consistent dimensions."""
         # Get content preview based on slide data
         content_preview = self.get_slide_content_preview(slide['data'])
         
@@ -102,16 +103,19 @@ class SlidePreviewGenerator:
             text-align: center; 
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             margin: 8px 0;
-            min-height: 140px;
+            height: 180px;
+            width: 100%;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: transform 0.2s ease;
+            overflow: hidden;
         ">
             <div style="font-size: 2.2em; margin-bottom: 8px;">{slide['icon']}</div>
             <div style="font-weight: bold; font-size: 1em; margin-bottom: 4px; color: #2c3e50;">{slide['title']}</div>
-            <div style="font-size: 0.85em; color: #495057; line-height: 1.3; overflow: hidden; text-overflow: ellipsis;">
+            <div style="font-size: 0.85em; color: #495057; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; max-height: 60px;">
                 {content_preview}
             </div>
         </div>
