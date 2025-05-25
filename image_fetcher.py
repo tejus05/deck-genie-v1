@@ -2,25 +2,35 @@ import requests
 import io
 import json
 import google.generativeai as genai
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from typing import Optional, Dict, Any, Tuple, List
 from utils import get_api_key, IMAGE_KEYWORDS
 import random
 
-def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Optional[io.BytesIO]:
+def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None, use_placeholders: bool = False) -> Optional[io.BytesIO]:
     """
     Fetch a relevant image from Unsplash for a slide type.
     
     Args:
         slide_type: Type of slide (problem, solution, advantage, audience)
         context: Additional context about the presentation to improve image relevance
+        use_placeholders: If True, skip Unsplash and use placeholders directly
         
     Returns:
         BytesIO object containing the processed image or None if failed
     """
+    # If placeholders are requested or Unsplash key is missing, use placeholders
+    if use_placeholders:
+        print(f"Using placeholder image for {slide_type} (placeholders mode enabled)")
+        return create_placeholder_image(slide_type)
+    
     try:
-        # Get access key from environment
-        access_key = get_api_key("UNSPLASH_API_KEY")
+        # Check if Unsplash API key is available
+        try:
+            access_key = get_api_key("UNSPLASH_API_KEY")
+        except ValueError:
+            print(f"Unsplash API key not found. Using placeholder image for {slide_type}")
+            return create_placeholder_image(slide_type)
         
         # Generate a focused search query using Gemini if context is provided
         if context and slide_type in context:
@@ -30,12 +40,33 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
             keywords = IMAGE_KEYWORDS.get(slide_type, ["business"])
             search_query = random.choice(keywords)
         
-        # Build the request URL
-        url = f"https://api.unsplash.com/photos/random?query={search_query}&orientation=landscape"
+        # Build the request URL with proper encoding
+        import urllib.parse
+        encoded_query = urllib.parse.quote(search_query)
+        url = f"https://api.unsplash.com/photos/random?query={encoded_query}&orientation=landscape"
         
-        # Make the request
-        headers = {"Authorization": f"Client-ID {access_key}"}
-        response = requests.get(url, headers=headers)
+        # Make the request with proper headers
+        headers = {
+            "Authorization": f"Client-ID {access_key}",
+            "Accept-Version": "v1"
+        }
+        
+        print(f"Fetching image for '{search_query}' from Unsplash...")
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        # Check response status
+        if response.status_code == 403:
+            print(f"Unsplash API access forbidden (403). Using placeholder image.")
+            return create_placeholder_image(slide_type)
+        elif response.status_code == 429:
+            print(f"Unsplash API rate limit exceeded (429). Using placeholder image.")
+            return create_placeholder_image(slide_type)
+        elif response.status_code != 200:
+            print(f"Unsplash API returned status {response.status_code}. Using placeholder image.")
+            return create_placeholder_image(slide_type)
+            print(f"Unsplash API rate limit exceeded (429). Falling back to placeholder.")
+            return create_placeholder_image(slide_type)
+        
         response.raise_for_status()
         
         # Parse the response
@@ -45,8 +76,10 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
         image_url = data["urls"]["regular"]
         
         # Download the image
-        image_response = requests.get(image_url)
+        image_response = requests.get(image_url, timeout=10)
         image_response.raise_for_status()
+        
+        print(f"Successfully fetched image for '{search_query}'")
         
         # Return the original image without processing
         image_data = io.BytesIO(image_response.content)
@@ -55,7 +88,8 @@ def fetch_image_for_slide(slide_type: str, context: Dict[str, Any] = None) -> Op
         return image_data
     except Exception as e:
         print(f"Error fetching image: {str(e)}")
-        return None
+        print(f"Falling back to placeholder image for slide type: {slide_type}")
+        return create_placeholder_image(slide_type)
 
 def generate_image_query_with_gemini(slide_type: str, context: Dict[str, Any]) -> str:
     """
@@ -229,3 +263,71 @@ def get_slide_icon(slide_type: str) -> Dict[str, Any]:
         "icon": icon,
         "size": (32, 32)
     }
+
+def create_placeholder_image(slide_type: str) -> io.BytesIO:
+    """
+    Create a placeholder image when Unsplash fetch fails.
+    
+    Args:
+        slide_type: Type of slide to create placeholder for
+        
+    Returns:
+        BytesIO object containing a simple placeholder image
+    """
+    try:
+        # Create a simple colored rectangle
+        width, height = 800, 600
+        colors = {
+            "problem": "#FF6B6B",  # Red
+            "solution": "#4ECDC4", # Teal  
+            "advantage": "#45B7D1", # Blue
+            "audience": "#96CEB4",  # Green
+            "features": "#FFEAA7",  # Yellow
+            "call_to_action": "#DDA0DD"  # Plum
+        }
+        
+        color = colors.get(slide_type, "#95A5A6")  # Default gray
+        
+        # Create image
+        image = Image.new('RGB', (width, height), color)
+        draw = ImageDraw.Draw(image)
+        
+        # Add text
+        text = f"{slide_type.upper()}\nIMAGE"
+        
+        try:
+            # Try to use a default font
+            font = ImageFont.truetype("Arial.ttf", 48)
+        except:
+            # Fallback to default font
+            font = ImageFont.load_default()
+        
+        # Get text size and center it
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        
+        # Draw text with outline for better visibility
+        outline_color = "#FFFFFF" if slide_type != "features" else "#000000"
+        for adj in range(-2, 3):
+            for adj2 in range(-2, 3):
+                draw.text((x+adj, y+adj2), text, font=font, fill=outline_color)
+        
+        # Draw main text
+        main_color = "#000000" if slide_type == "features" else "#FFFFFF"
+        draw.text((x, y), text, font=font, fill=main_color)
+        
+        # Save to BytesIO
+        img_buffer = io.BytesIO()
+        image.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        
+        return img_buffer
+        
+    except Exception as e:
+        print(f"Error creating placeholder image: {str(e)}")
+        # Return a minimal BytesIO with empty content as last resort
+        return io.BytesIO()
