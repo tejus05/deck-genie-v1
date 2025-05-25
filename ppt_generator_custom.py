@@ -4,7 +4,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
-from image_fetcher import fetch_image_for_slide, get_slide_icon
+from image_fetcher import get_slide_icon
 from utils import FONTS, COLORS, FONT_SIZES, MARGINS, CONTENT_AREA, IMAGE_AREA, match_icon_to_feature
 from image_manager import ImageManager
 
@@ -95,7 +95,7 @@ def create_custom_title_slide(prs: Presentation, content: Dict[str, str], image_
         alignment=PP_ALIGN.CENTER
     )
     
-    # Add custom image if available
+    # Add custom image if available (cached or uploaded)
     custom_image = image_manager.get_image_for_slide('title_slide')
     if custom_image:
         # Add custom image as background or decorative element
@@ -145,47 +145,31 @@ def create_custom_problem_slide(prs: Presentation, content: Dict[str, Any], pres
         
     apply_text_formatting(tf)
     
-    # Right content - custom image or default
+    # Right content - custom image or cached image
     right_content = slide.placeholders[2]
-    custom_image = image_manager.get_image_for_slide('problem_slide')
+    image_data = image_manager.get_image_for_slide('problem_slide')
     
-    if custom_image:
+    if image_data:
         placeholder_width = right_content.width
         placeholder_height = right_content.height
         placeholder_left = right_content.left
         placeholder_top = right_content.top
 
         pic = slide.shapes.add_picture(
-            custom_image,
+            image_data,
             placeholder_left,
             placeholder_top,
             placeholder_width,
             placeholder_height
         )
     else:
-        # Use default image or icon
-        image_data = fetch_image_for_slide("problem", presentation_context, use_placeholders=False)
-        
-        if image_data:
-            placeholder_width = right_content.width
-            placeholder_height = right_content.height
-            placeholder_left = right_content.left
-            placeholder_top = right_content.top
-
-            pic = slide.shapes.add_picture(
-                image_data,
-                placeholder_left,
-                placeholder_top,
-                placeholder_width,
-                placeholder_height
-            )
-        else:
-            icon_info = get_slide_icon("problem")
-            tf = right_content.text_frame
-            p = tf.add_paragraph()
-            p.text = icon_info["icon"]
-            p.alignment = PP_ALIGN.CENTER
-            apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
+        # Use icon as fallback only if no image is available at all
+        icon_info = get_slide_icon("problem")
+        tf = right_content.text_frame
+        p = tf.add_paragraph()
+        p.text = icon_info["icon"]
+        p.alignment = PP_ALIGN.CENTER
+        apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
 
 def create_custom_solution_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any], image_manager: ImageManager):
     """Create the customized solution overview slide."""
@@ -210,46 +194,30 @@ def create_custom_solution_slide(prs: Presentation, content: Dict[str, Any], pre
     
     apply_text_formatting(tf)
     
-    # Right content - custom image or default
+    # Right content - custom image or cached image
     right_content = slide.placeholders[2]
-    custom_image = image_manager.get_image_for_slide('solution_slide')
+    image_data = image_manager.get_image_for_slide('solution_slide')
     
-    if custom_image:
+    if image_data:
         placeholder_width = right_content.width
         placeholder_height = right_content.height
         placeholder_left = right_content.left
         placeholder_top = right_content.top
 
         pic = slide.shapes.add_picture(
-            custom_image,
+            image_data,
             placeholder_left,
             placeholder_top,
             placeholder_width,
             placeholder_height
         )
     else:
-        # Use default image or icon
-        image_data = fetch_image_for_slide("solution", presentation_context, use_placeholders=False)
-        
-        if image_data:
-            placeholder_width = right_content.width
-            placeholder_height = right_content.height
-            placeholder_left = right_content.left
-            placeholder_top = right_content.top
-
-            pic = slide.shapes.add_picture(
-                image_data,
-                placeholder_left,
-                placeholder_top,
-                placeholder_width,
-                placeholder_height
-            )
-        else:
-            tf = right_content.text_frame
-            p = tf.add_paragraph()
-            p.text = get_slide_icon("solution")["icon"]
-            p.alignment = PP_ALIGN.CENTER
-            apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
+        # Use icon as fallback only if no image is available at all
+        tf = right_content.text_frame
+        p = tf.add_paragraph()
+        p.text = get_slide_icon("solution")["icon"]
+        p.alignment = PP_ALIGN.CENTER
+        apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
 
 def create_custom_features_slide(prs: Presentation, content: Dict[str, Any], image_manager: ImageManager):
     """Create the customized key features slide."""
@@ -301,7 +269,7 @@ def create_custom_features_slide(prs: Presentation, content: Dict[str, Any], ima
     for cell in table.iter_cells():
         cell.fill.background()
     
-    # Add custom image if available (smaller, positioned below table)
+    # Add custom image if available (cached or uploaded), positioned below table
     custom_image = image_manager.get_image_for_slide('features_slide')
     if custom_image:
         pic = slide.shapes.add_picture(
@@ -349,46 +317,30 @@ def create_custom_advantage_slide(prs: Presentation, content: Dict[str, Any], pr
         
     apply_text_formatting(tf)
     
-    # Right content - custom image or default
+    # Right content - custom image or cached image
     right_content = slide.placeholders[2]
-    custom_image = image_manager.get_image_for_slide('advantage_slide')
+    image_data = image_manager.get_image_for_slide('advantage_slide')
     
-    if custom_image:
+    if image_data:
         placeholder_width = right_content.width
         placeholder_height = right_content.height
         placeholder_left = right_content.left
         placeholder_top = right_content.top
 
         pic = slide.shapes.add_picture(
-            custom_image,
+            image_data,
             placeholder_left,
             placeholder_top,
             placeholder_width,
             placeholder_height
         )
     else:
-        # Use default image or icon
-        image_data = fetch_image_for_slide("advantage", presentation_context, use_placeholders=False)
-        
-        if image_data:
-            placeholder_width = right_content.width
-            placeholder_height = right_content.height
-            placeholder_left = right_content.left
-            placeholder_top = right_content.top
-
-            pic = slide.shapes.add_picture(
-                image_data,
-                placeholder_left,
-                placeholder_top,
-                placeholder_width,
-                placeholder_height
-            )
-        else:
-            tf = right_content.text_frame
-            p = tf.add_paragraph()
-            p.text = get_slide_icon("advantage")["icon"]
-            p.alignment = PP_ALIGN.CENTER
-            apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
+        # Use icon as fallback only if no image is available at all
+        tf = right_content.text_frame
+        p = tf.add_paragraph()
+        p.text = get_slide_icon("advantage")["icon"]
+        p.alignment = PP_ALIGN.CENTER
+        apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
 
 def create_custom_audience_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any], image_manager: ImageManager):
     """Create the customized target audience slide."""
@@ -413,46 +365,30 @@ def create_custom_audience_slide(prs: Presentation, content: Dict[str, Any], pre
     
     apply_text_formatting(tf)
     
-    # Right content - custom image or default
+    # Right content - custom image or cached image
     right_content = slide.placeholders[2]
-    custom_image = image_manager.get_image_for_slide('audience_slide')
+    image_data = image_manager.get_image_for_slide('audience_slide')
     
-    if custom_image:
+    if image_data:
         placeholder_width = right_content.width
         placeholder_height = right_content.height
         placeholder_left = right_content.left
         placeholder_top = right_content.top
 
         pic = slide.shapes.add_picture(
-            custom_image,
+            image_data,
             placeholder_left,
             placeholder_top,
             placeholder_width,
             placeholder_height
         )
     else:
-        # Use default image or icon
-        image_data = fetch_image_for_slide("audience", presentation_context, use_placeholders=False)
-        
-        if image_data:
-            placeholder_width = right_content.width
-            placeholder_height = right_content.height
-            placeholder_left = right_content.left
-            placeholder_top = right_content.top
-
-            pic = slide.shapes.add_picture(
-                image_data,
-                placeholder_left,
-                placeholder_top,
-                placeholder_width,
-                placeholder_height
-            )
-        else:
-            tf = right_content.text_frame
-            p = tf.add_paragraph()
-            p.text = get_slide_icon("audience")["icon"]
-            p.alignment = PP_ALIGN.CENTER
-            apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
+        # Use icon as fallback only if no image is available at all
+        tf = right_content.text_frame
+        p = tf.add_paragraph()
+        p.text = get_slide_icon("audience")["icon"]
+        p.alignment = PP_ALIGN.CENTER
+        apply_text_formatting(tf, size=72, alignment=PP_ALIGN.CENTER)
 
 def create_custom_cta_slide(prs: Presentation, content: Dict[str, Any], image_manager: ImageManager):
     """Create the customized call to action slide."""
@@ -491,7 +427,7 @@ def create_custom_cta_slide(prs: Presentation, content: Dict[str, Any], image_ma
         alignment=PP_ALIGN.CENTER
     )
     
-    # Add custom image if available (positioned at bottom)
+    # Add custom image if available (cached or uploaded), positioned at bottom
     custom_image = image_manager.get_image_for_slide('cta_slide')
     if custom_image:
         pic = slide.shapes.add_picture(

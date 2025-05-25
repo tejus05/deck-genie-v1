@@ -18,16 +18,22 @@ def create_presentation(content: Dict[str, Any], filename: str) -> io.BytesIO:
     Returns:
         BytesIO object containing the presentation
     """
+    import streamlit as st
+    
     prs = Presentation()
     
     # Set slide size to standard (4:3) - 10 x 7.5 inches
     prs.slide_width = Inches(10)
     prs.slide_height = Inches(7.5)
     
-    # Create slides
+    # Initialize image cache for future customizations
+    if 'original_images_cache' not in st.session_state:
+        st.session_state.original_images_cache = {}
+    
+    # Create slides and cache images during creation
     create_title_slide(prs, content['title_slide'])
     create_problem_slide(prs, content['problem_slide'], content)
-    create_solution_slide(prs, content['solution_slide'], content)
+    create_solution_slide(prs, content['solution_slide'], content) 
     create_features_slide(prs, content['features_slide'])
     create_advantage_slide(prs, content['advantage_slide'], content)
     create_audience_slide(prs, content['audience_slide'], content)
@@ -128,6 +134,16 @@ def create_problem_slide(prs: Presentation, content: Dict[str, Any], presentatio
     right_content = slide.placeholders[2]
     image_data = fetch_image_for_slide("problem", presentation_context, use_placeholders=False)
     
+    # Cache the image for future customizations
+    import streamlit as st
+    if image_data and 'original_images_cache' in st.session_state:
+        # Save a copy of the image data to cache
+        image_data.seek(0)
+        cached_data = image_data.read()
+        st.session_state.original_images_cache['problem_slide'] = cached_data
+        # Reset the image data for use
+        image_data.seek(0)
+    
     if image_data:
         # Get placeholder dimensions
         placeholder_width = right_content.width
@@ -179,6 +195,16 @@ def create_solution_slide(prs: Presentation, content: Dict[str, Any], presentati
     # Right content - icon or image
     right_content = slide.placeholders[2]
     image_data = fetch_image_for_slide("solution", presentation_context, use_placeholders=False)
+    
+    # Cache the image for future customizations
+    import streamlit as st
+    if image_data and 'original_images_cache' in st.session_state:
+        # Save a copy of the image data to cache
+        image_data.seek(0)
+        cached_data = image_data.read()
+        st.session_state.original_images_cache['solution_slide'] = cached_data
+        # Reset the image data for use
+        image_data.seek(0)
     
     if image_data:
         # Get placeholder dimensions
@@ -298,6 +324,16 @@ def create_advantage_slide(prs: Presentation, content: Dict[str, Any], presentat
     right_content = slide.placeholders[2]
     image_data = fetch_image_for_slide("advantage", presentation_context, use_placeholders=False)
     
+    # Cache the image for future customizations
+    import streamlit as st
+    if image_data and 'original_images_cache' in st.session_state:
+        # Save a copy of the image data to cache
+        image_data.seek(0)
+        cached_data = image_data.read()
+        st.session_state.original_images_cache['advantage_slide'] = cached_data
+        # Reset the image data for use
+        image_data.seek(0)
+    
     if image_data:
         # Get placeholder dimensions
         placeholder_width = right_content.width
@@ -348,6 +384,16 @@ def create_audience_slide(prs: Presentation, content: Dict[str, Any], presentati
     # Right content - image
     right_content = slide.placeholders[2]
     image_data = fetch_image_for_slide("audience", presentation_context, use_placeholders=False)
+    
+    # Cache the image for future customizations
+    import streamlit as st
+    if image_data and 'original_images_cache' in st.session_state:
+        # Save a copy of the image data to cache
+        image_data.seek(0)
+        cached_data = image_data.read()
+        st.session_state.original_images_cache['audience_slide'] = cached_data
+        # Reset the image data for use
+        image_data.seek(0)
     
     if image_data:
         # Get placeholder dimensions

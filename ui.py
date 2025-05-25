@@ -189,8 +189,11 @@ def render_ui():
                         progress_bar.progress(10)
                         st.balloons()  # Add a fun element at the start
                         
-                        # Create live preview container
+                        # Create live preview container for generation
                         preview_container_ui, slide_placeholders = preview_generator.create_preview_container()
+                        
+                        # Mark that preview was shown during generation
+                        st.session_state.preview_shown_during_generation = True
                         
                         # Process input data
                         features_list = [f for f in key_features.strip().split('\n') if f]
@@ -239,6 +242,10 @@ def render_ui():
                         # Store the original content in session state for editing
                         st.session_state.original_content = content
                         st.session_state.presentation_generated = True
+                        
+                        # Initialize image cache to prevent re-fetching during customization
+                        if 'original_images_cache' not in st.session_state:
+                            st.session_state.original_images_cache = {}
                     
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
@@ -246,5 +253,89 @@ def render_ui():
     
     # Render the slide editor after generation (outside the form)
     if st.session_state.get('presentation_generated', False) and st.session_state.get('original_content'):
+        # Create a persistent preview generator for real-time updates
+        if 'persistent_preview_generator' not in st.session_state:
+            st.session_state.persistent_preview_generator = SlidePreviewGenerator()
+        
+        preview_generator = st.session_state.persistent_preview_generator
+        
+        # Only show preview if it hasn't been shown during generation
+        if not st.session_state.get('preview_shown_during_generation', False):
+            preview_generator.create_preview_container()
+            # Render existing slides in the preview
+            if st.session_state.get('original_content'):
+                preview_generator.update_preview_with_content(st.session_state.original_content)
+        
+        # Download original presentation button (always visible after generation)
+        st.markdown("---")
+        st.markdown("## 📥 Download Your Presentation")
+        
+        try:
+            original_filename = f"{sanitize_filename(st.session_state.original_content['metadata']['company_name'])}_{sanitize_filename(st.session_state.original_content['metadata']['product_name'])}_Overview.pptx"
+            
+            # Cache the original presentation buffer to prevent API calls on every re-render
+            cache_key = f"original_buffer_{id(st.session_state.original_content)}"
+            if cache_key not in st.session_state:
+                st.session_state[cache_key] = create_presentation(st.session_state.original_content, original_filename)
+            original_buffer = st.session_state[cache_key]
+            
+            st.download_button(
+                label="📥 Download Original Presentation",
+                data=original_buffer,
+                file_name=original_filename,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error(f"Error creating original presentation: {str(e)}")
+        
+        # Customization section with tabs
+        st.markdown("---")
+        st.markdown("## 🛠️ Customize Your Presentation")
+        
+        # Initialize slide editor state before using it
         slide_editor = SlideEditor()
-        slide_editor.render_slide_editor(st.session_state.original_content)
+        slide_editor.initialize_editor_state(st.session_state.original_content)
+        slide_editor.preview_generator = preview_generator
+        
+        # Create tabs but ensure state is fully initialized before content
+        tab1, tab2 = st.tabs(["🔄 Reorder Slides", "✏️ Edit Content"])
+        
+        # Ensure slide_order is properly initialized before tab content
+        if 'slide_order' not in st.session_state:
+            st.session_state.slide_order = slide_editor.slide_keys.copy()
+        
+        with tab1:
+            st.markdown("### Reorder your slides using the buttons below")
+            slide_editor._render_slide_reordering()
+        
+        with tab2:
+            st.markdown("### Click on any slide to edit its content")
+            slide_editor._render_individual_slide_editors()
+        
+        # Customized download button (only shown if modifications exist)
+        if st.session_state.get('has_modifications', False):
+            st.markdown("---")
+            st.markdown("## 🎨 Download Customized Version")
+            st.markdown("✅ **Changes detected** - Download your customized presentation")
+            
+            try:
+                modified_content = slide_editor._prepare_modified_content(st.session_state.original_content)
+                modified_filename = f"{sanitize_filename(st.session_state.original_content['metadata']['company_name'])}_{sanitize_filename(st.session_state.original_content['metadata']['product_name'])}_Custom.pptx"
+                
+                from image_manager import ImageManager
+                image_manager = ImageManager(
+                    st.session_state.get('uploaded_images', {}),
+                    st.session_state.get('original_images_cache', {})
+                )
+                modified_buffer = slide_editor._create_modified_presentation(modified_content, modified_filename, image_manager)
+                
+                st.download_button(
+                    label="📥 Download Customized Presentation",
+                    data=modified_buffer,
+                    file_name=modified_filename,
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.error(f"Error creating customized presentation: {str(e)}")

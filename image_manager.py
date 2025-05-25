@@ -5,15 +5,24 @@ from PIL import Image
 class ImageManager:
     """Manages custom images for slides."""
     
-    def __init__(self, uploaded_images: Dict[str, bytes]):
+    def __init__(self, uploaded_images: Dict[str, bytes], cached_images: Dict[str, bytes] = None):
         self.uploaded_images = uploaded_images
+        self.cached_images = cached_images or {}
     
     def get_image_for_slide(self, slide_key: str) -> Optional[io.BytesIO]:
-        """Get custom image for a slide if available."""
+        """Get custom image for a slide if available, otherwise return cached original image."""
+        # First check for custom uploaded images
         if slide_key in self.uploaded_images:
             image_data = self.uploaded_images[slide_key]
-            # Process and return the image
             return self._process_image(image_data)
+        
+        # Then check for cached original images  
+        if slide_key in self.cached_images:
+            image_data = self.cached_images[slide_key]
+            cached_image = io.BytesIO(image_data)
+            cached_image.seek(0)
+            return cached_image
+            
         return None
     
     def _process_image(self, image_data: bytes) -> io.BytesIO:
