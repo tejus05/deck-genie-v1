@@ -3,6 +3,13 @@ import json
 import google.generativeai as genai
 from typing import Dict, List, Any
 from utils import get_api_key, truncate_text
+from slide_content_generators import (
+    generate_title_slide_content, generate_problem_slide_content,
+    generate_solution_slide_content, generate_features_slide_content,
+    generate_advantage_slide_content, generate_audience_slide_content,
+    generate_cta_slide_content, generate_market_slide_content,
+    generate_roadmap_slide_content, generate_team_slide_content
+)
 
 def generate_presentation_content(
     company_name: str,
@@ -11,10 +18,12 @@ def generate_presentation_content(
     problem_statement: str,
     key_features: List[str],
     competitive_advantage: str,
-    call_to_action: str
+    call_to_action: str,
+    persona: str = "Generic",
+    slide_count: int = 7
 ) -> Dict[str, Any]:
     """
-    Generate content for all slides using Gemini API.
+    Generate content for all slides using Gemini API with persona customization.
     
     Args:
         company_name: The company name
@@ -24,6 +33,8 @@ def generate_presentation_content(
         key_features: List of key features
         competitive_advantage: The competitive advantage text
         call_to_action: The call to action text
+        persona: Target persona ("Generic", "Technical", "Marketing", "Executive", "Investor")
+        slide_count: Number of slides to generate (5-10)
         
     Returns:
         Dictionary containing structured content for all slides
@@ -32,382 +43,177 @@ def generate_presentation_content(
         # Configure the Gemini API
         genai.configure(api_key=get_api_key("GEMINI_API_KEY"))
         
-        # Generate content for each slide
+        # Generate content for each slide with persona context
         title_content = generate_title_slide_content(product_name, company_name)
-        problem_content = generate_problem_slide_content(problem_statement)
-        solution_content = generate_solution_slide_content(product_name, problem_statement)
-        features_content = generate_features_slide_content(key_features)
-        advantage_content = generate_advantage_slide_content(competitive_advantage)
-        audience_content = generate_audience_slide_content(target_audience)
-        cta_content = {'call_to_action': call_to_action}
+        problem_content = generate_problem_slide_content(problem_statement, persona)
+        solution_content = generate_solution_slide_content(product_name, problem_statement, persona)
+        features_content = generate_features_slide_content(key_features, persona)
+        advantage_content = generate_advantage_slide_content(competitive_advantage, persona)
+        audience_content = generate_audience_slide_content(target_audience, persona)
+        cta_content = generate_cta_slide_content(call_to_action, product_name, persona)
         
-        # Assemble all content
-        presentation_content = {
+        # Define all possible slides
+        all_slides = {
             'title_slide': title_content,
             'problem_slide': problem_content,
             'solution_slide': solution_content,
             'features_slide': features_content,
             'advantage_slide': advantage_content,
             'audience_slide': audience_content,
-            'cta_slide': cta_content,
-            'metadata': {
-                'company_name': company_name,
-                'product_name': product_name
-            }
+            'cta_slide': cta_content
         }
         
-        return presentation_content
+        # Generate additional slides if needed for higher slide counts
+        # These are candidates for inclusion based on slide_count
+        candidate_additional_slides = {}
+        
+        # We'll generate these using lambda functions to defer execution until needed
+        candidate_additional_slides['market_slide'] = lambda: generate_market_slide_content(target_audience, persona)
+        candidate_additional_slides['roadmap_slide'] = lambda: generate_roadmap_slide_content(product_name, persona)
+        candidate_additional_slides['team_slide'] = lambda: generate_team_slide_content(company_name, persona)
+
+        # Select slides based on slide_count and persona
+        selected_slides = select_slides_for_presentation(all_slides, candidate_additional_slides, slide_count, persona)
+        
+        # Add metadata
+        selected_slides['metadata'] = {
+            'company_name': company_name,
+            'product_name': product_name,
+            'persona': persona,
+            'slide_count': slide_count
+        }        
+        return selected_slides
     except Exception as e:
         raise Exception(f"Error generating presentation content: {str(e)}")
 
-def generate_title_slide_content(product_name: str, company_name: str) -> Dict[str, str]:
-    """Generate content for the title slide."""
-    return {
-        'title': product_name,
-        'subtitle': f"by {company_name}"
+def select_slides_for_presentation(all_slides: Dict, candidate_additional_slides: Dict, slide_count: int, persona: str = "Generic") -> Dict[str, Any]:
+    """Select appropriate slides based on user-specified slide count and persona."""
+    # Set the minimum number of slides (title and CTA are required)
+    min_slides = 2
+    
+    # Set a slide priority order based on persona
+    slide_priorities = {
+        "Generic": [
+            'title_slide',     # Always first
+            'problem_slide',   
+            'solution_slide',  
+            'features_slide',  
+            'advantage_slide', 
+            'audience_slide',  
+            'market_slide',    
+            'roadmap_slide',   
+            'team_slide',      
+            'cta_slide'        # Always last
+        ],
+        "Technical": [
+            'title_slide',     # Always first
+            'problem_slide',   
+            'solution_slide',  
+            'features_slide',  
+            'audience_slide',  
+            'advantage_slide', 
+            'roadmap_slide',   
+            'team_slide',      
+            'market_slide',    
+            'cta_slide'        # Always last
+        ],
+        "Marketing": [
+            'title_slide',     # Always first
+            'solution_slide',  
+            'problem_slide',   
+            'advantage_slide', 
+            'audience_slide',  
+            'features_slide',  
+            'market_slide',    
+            'team_slide',      
+            'roadmap_slide',   
+            'cta_slide'        # Always last
+        ],
+        "Executive": [
+            'title_slide',     # Always first
+            'market_slide',    
+            'problem_slide',   
+            'solution_slide',  
+            'advantage_slide', 
+            'features_slide',  
+            'roadmap_slide',   
+            'audience_slide',  
+            'team_slide',      
+            'cta_slide'        # Always last
+        ],
+        "Investor": [
+            'title_slide',     # Always first
+            'market_slide',    
+            'problem_slide',   
+            'solution_slide',  
+            'team_slide',      
+            'advantage_slide', 
+            'roadmap_slide',   
+            'features_slide',  
+            'audience_slide',  
+            'cta_slide'        # Always last
+        ]
     }
-
-def generate_problem_slide_content(problem_statement: str) -> Dict[str, Any]:
-    """Generate content for the problem statement slide."""
-    prompt = f"""
-    Generate 4-5 concise, detailed bullets for a 'Problem Statement' slide in a B2B SaaS product presentation.
-    Each bullet should be executive-ready, data-driven, and highlight a specific pain point from this problem statement:
     
-    "{problem_statement}"
+    # Use Generic priority if persona not found
+    selected_priorities = slide_priorities.get(persona, slide_priorities["Generic"])
     
-    Guidelines:
-    - Each bullet must be 1-2 sentences, maximum 20 words
-    - Use outcome-oriented language (costs, time wasted, inefficiencies)
-    - Include specific metrics or percentages where possible
-    - Focus on organizational impact, not just individual pain
-    - Use Title Case for the slide title
+    # Ensure slide_count is within bounds (min 5, max 10)
+    slide_count = max(5, min(slide_count, 10))
     
-    Format your response as a JSON object with:
-    1. A "title" key containing a compelling slide title (max 10 words)
-    2. A "bullets" key containing an array of bullet points
+    # Start with empty selection
+    selected = {}
     
-    Example format:
-    {{
-      "title": "Industry Pain Points",
-      "bullets": [
-        "67% of managers waste 5+ hours weekly on manual reporting.",
-        "Data silos lead to 23% duplication of work across teams."
-      ]
-    }}
+    # Always include title_slide and cta_slide
+    if 'title_slide' in all_slides:
+        selected['title_slide'] = all_slides['title_slide']
+    if 'cta_slide' in all_slides:
+        selected['cta_slide'] = all_slides['cta_slide']
     
-    You are an expert B2B SaaS copywriter who creates executive-ready, minimalist presentation content.
-    """
+    # Fill in the rest based on priority until we hit the slide count
+    remaining_slots = slide_count - len(selected)
     
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={"temperature": 0.3, "max_output_tokens": 500}
-    )
-    
-    response = model.generate_content(
-        [
-            {"role": "user", "parts": [prompt]},
-        ]
-    )
-    
-    # Parse the JSON response
-    try:
-        response_text = response.text
-        content_start = response_text.find('{')
-        content_end = response_text.rfind('}') + 1
-        
-        if content_start >= 0 and content_end > content_start:
-            json_content = response_text[content_start:content_end]
-            result = json.loads(json_content)
+    # First add slides from the all_slides dictionary based on persona priority
+    for slide_key in selected_priorities:
+        if slide_key in ['title_slide', 'cta_slide']:
+            continue  # Already added
             
-            # Ensure we have the expected keys
-            if "title" not in result or "bullets" not in result:
-                raise ValueError("Response missing required keys")
+        if remaining_slots <= 0:
+            break
+            
+        if slide_key in all_slides:
+            selected[slide_key] = all_slides[slide_key]
+            remaining_slots -= 1
+    
+    # If we still need more slides, use the candidate_additional_slides based on persona priority
+    if remaining_slots > 0:
+        for slide_key in selected_priorities:
+            if remaining_slots <= 0:
+                break
                 
-            # Limit to max 5 bullets
-            result["bullets"] = result["bullets"][:5]
-            
-            return result
-        else:
-            raise ValueError("No valid JSON found in response")
-    except Exception as e:
-        # Fallback if parsing fails
-        return {
-            "title": "The Problem",
-            "bullets": [
-                "Organizations struggle with fragmented data systems.",
-                "Manual processes waste valuable time and resources.",
-                "Decision-makers often work with outdated information.",
-                "Teams face communication barriers across departments."
-            ]
-        }
+            if slide_key not in selected and slide_key in candidate_additional_slides:
+                # Generate the content using the lambda function
+                selected[slide_key] = candidate_additional_slides[slide_key]()
+                remaining_slots -= 1
+    
+    return selected
 
-def generate_solution_slide_content(product_name: str, problem_statement: str) -> Dict[str, Any]:
-    """Generate content for the solution overview slide."""
-    prompt = f"""
-    Generate a concise, impactful solution overview paragraph for a B2B SaaS product presentation slide.
-    The product name is "{product_name}" and it addresses this problem:
-    
-    "{problem_statement}"
-    
-    Guidelines:
-    - Write 2-3 sentences (maximum 60 words total)
-    - Focus on outcomes and benefits, not features
-    - Use authoritative, confident tone
-    - Emphasize transformation from problem to solution
-    - Use Title Case for the slide title
-    
-    Format your response as a JSON object with:
-    1. A "title" key containing a compelling slide title (max 10 words)
-    2. A "paragraph" key containing your solution paragraph
-    
-    Example format:
-    {{
-      "title": "Our Solution",
-      "paragraph": "ProductX delivers seamless data integration across platforms, eliminating silos and reducing reporting time by 78%. Teams gain instant access to unified insights, enabling faster decisions and measurable ROI within 30 days of implementation."
-    }}
-    """
-    
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={"temperature": 0.3, "max_output_tokens": 400}
-    )
-    
-    response = model.generate_content(
-        [
-            {"role": "user", "parts": [prompt]},
-        ]
-    )
-    
-    # Parse the JSON response
-    try:
-        response_text = response.text
-        content_start = response_text.find('{')
-        content_end = response_text.rfind('}') + 1
-        
-        if content_start >= 0 and content_end > content_start:
-            json_content = response_text[content_start:content_end]
-            result = json.loads(json_content)
-            
-            # Ensure we have the expected keys
-            if "title" not in result or "paragraph" not in result:
-                raise ValueError("Response missing required keys")
-                
-            # Truncate paragraph if too long
-            result["paragraph"] = truncate_text(result["paragraph"], 300)
-            
-            return result
-        else:
-            raise ValueError("No valid JSON found in response")
-    except Exception as e:
-        # Fallback if parsing fails
-        return {
-            "title": "Our Solution",
-            "paragraph": f"{product_name} streamlines your data workflow with an intuitive platform that connects all systems. Teams gain instant access to accurate information, reducing reporting time by 70% and enabling data-driven decisions that drive business growth."
-        }
+def get_domain_context(domain: str) -> str:
+    """Get domain-specific context for prompts."""
+    contexts = {
+        'investor': 'investor pitch focusing on market opportunity, growth potential, competitive advantage, and ROI',
+        'marketing': 'marketing presentation emphasizing customer benefits, market positioning, and compelling value propositions',
+        'generic': 'general business presentation with balanced technical and business content'
+    }
+    return contexts.get(domain, contexts['generic'])
 
-def generate_features_slide_content(features: List[str]) -> Dict[str, Any]:
-    """Generate content for the key features slide."""
-    features_text = "\n".join([f"- {feature}" for feature in features])
-    
-    prompt = f"""
-    Create concise, benefit-focused descriptions for each of these key features for a B2B SaaS product presentation.
-    
-    Here are the raw features:
-    {features_text}
-    
-    Guidelines:
-    - Keep the original feature name, but enhance its description
-    - Each feature should be in format "Feature Name: Benefit statement"
-    - Benefit statement should be 8-12 words maximum
-    - Focus on outcomes, not technical details
-    - Use active voice and present tense
-    - Use Title Case for the slide title
-    
-    Format your response as a JSON object with:
-    1. A "title" key containing a compelling slide title (max 10 words)
-    2. A "features" key containing an array of enhanced feature descriptions
-    
-    Example format:
-    {{
-      "title": "Key Features",
-      "features": [
-        "Real-time Analytics: Make decisions faster with instant data insights",
-        "Seamless Integration: Connect to existing systems without coding"
-      ]
-    }}
-    """
-    
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={"temperature": 0.3, "max_output_tokens": 600}
-    )
-    
-    response = model.generate_content(
-        [
-            {"role": "user", "parts": [prompt]},
-        ]
-    )
-    
-    # Parse the JSON response
-    try:
-        response_text = response.text
-        content_start = response_text.find('{')
-        content_end = response_text.rfind('}') + 1
-        
-        if content_start >= 0 and content_end > content_start:
-            json_content = response_text[content_start:content_end]
-            result = json.loads(json_content)
-            
-            # Ensure we have the expected keys
-            if "title" not in result or "features" not in result:
-                raise ValueError("Response missing required keys")
-                
-            # Ensure we have the right number of features
-            if len(result["features"]) != len(features):
-                result["features"] = [f"{feature}: Enhanced functionality for better results" for feature in features]
-            
-            return result
-        else:
-            raise ValueError("No valid JSON found in response")
-    except Exception as e:
-        # Fallback if parsing fails
-        return {
-            "title": "Key Features",
-            "features": [f"{feature}: Enhanced functionality for better results" for feature in features]
-        }
-
-def generate_advantage_slide_content(competitive_advantage: str) -> Dict[str, Any]:
-    """Generate content for the competitive advantage slide."""
-    prompt = f"""
-    Generate 3-4 compelling bullet points highlighting competitive advantages for a B2B SaaS product presentation.
-    Base the content on this competitive advantage statement:
-    
-    "{competitive_advantage}"
-    
-    Guidelines:
-    - Each bullet should be 1-2 sentences, maximum 20 words
-    - Focus on quantifiable advantages (faster, cheaper, more reliable)
-    - Include specific metrics or percentages where possible
-    - Compare to industry standards or competitors without naming them
-    - Use Title Case for the slide title
-    
-    Format your response as a JSON object with:
-    1. A "title" key containing a compelling slide title (max 10 words)
-    2. A "bullets" key containing an array of advantage bullet points
-    
-    Example format:
-    {{
-      "title": "Why We Lead The Market",
-      "bullets": [
-        "70% faster implementation than industry average.",
-        "ROI within 3 months versus typical 12-month payback."
-      ]
-    }}
-    """
-    
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={"temperature": 0.3, "max_output_tokens": 500}
-    )
-    
-    response = model.generate_content(
-        [
-            {"role": "user", "parts": [prompt]},
-        ]
-    )
-    
-    # Parse the JSON response
-    try:
-        response_text = response.text
-        content_start = response_text.find('{')
-        content_end = response_text.rfind('}') + 1
-        
-        if content_start >= 0 and content_end > content_start:
-            json_content = response_text[content_start:content_end]
-            result = json.loads(json_content)
-            
-            # Ensure we have the expected keys
-            if "title" not in result or "bullets" not in result:
-                raise ValueError("Response missing required keys")
-                
-            # Limit to max 4 bullets
-            result["bullets"] = result["bullets"][:4]
-            
-            return result
-        else:
-            raise ValueError("No valid JSON found in response")
-    except Exception as e:
-        # Fallback if parsing fails
-        return {
-            "title": "Why We Win",
-            "bullets": [
-                "70% faster implementation than industry average.",
-                "3x higher data accuracy rates than competitors.",
-                "Flexible pricing saves companies 40% on licensing costs.",
-                "24/7 dedicated support with 15-minute response times."
-            ]
-        }
-
-def generate_audience_slide_content(target_audience: str) -> Dict[str, Any]:
-    """Generate content for the target audience slide."""
-    prompt = f"""
-    Generate a concise paragraph describing the ideal customer for a B2B SaaS product presentation.
-    Base the content on this target audience description:
-    
-    "{target_audience}"
-    
-    Guidelines:
-    - Write 2-3 sentences (maximum 60 words total)
-    - Describe ideal customer profile in specific terms
-    - Include company size, role titles, industry verticals if applicable
-    - Focus on pain points and desired outcomes
-    - Use Title Case for the slide title
-    
-    Format your response as a JSON object with:
-    1. A "title" key containing a compelling slide title (max 10 words)
-    2. A "paragraph" key containing your target audience paragraph
-    
-    Example format:
-    {{
-      "title": "Who We Serve",
-      "paragraph": "Mid-size financial services organizations with 100-1000 employees and complex reporting requirements. Our solution serves CFOs, controllers, and finance teams seeking to reduce monthly close time and improve financial visibility across departments."
-    }}
-    """
-    
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={"temperature": 0.3, "max_output_tokens": 400}
-    )
-    
-    response = model.generate_content(
-        [
-            {"role": "user", "parts": [prompt]},
-        ]
-    )
-    
-    # Parse the JSON response
-    try:
-        response_text = response.text
-        content_start = response_text.find('{')
-        content_end = response_text.rfind('}') + 1
-        
-        if content_start >= 0 and content_end > content_start:
-            json_content = response_text[content_start:content_end]
-            result = json.loads(json_content)
-            
-            # Ensure we have the expected keys
-            if "title" not in result or "paragraph" not in result:
-                raise ValueError("Response missing required keys")
-                
-            # Truncate paragraph if too long
-            result["paragraph"] = truncate_text(result["paragraph"], 300)
-            
-            return result
-        else:
-            raise ValueError("No valid JSON found in response")
-    except Exception as e:
-        # Fallback if parsing fails
-        return {
-            "title": "Who We Serve",
-            "paragraph": f"Mid-size enterprises with complex data needs and cross-departmental reporting requirements. Our platform serves CTOs, IT directors, and data teams seeking to streamline workflows, eliminate manual processes, and enable data-driven decision making."
-        }
+def get_persona_context(persona: str) -> str:
+    """Get persona-specific context for prompts."""
+    contexts = {
+        'Technical': 'technical audience who appreciates detailed specifications, architecture insights, and implementation details',
+        'Marketing': 'business audience focused on outcomes, benefits, market impact, and customer success stories',
+        'Generic': 'mixed audience requiring both technical credibility and business value focus',
+        'Executive': 'executive audience focused on business impact, ROI, strategic alignment, and high-level benefits',
+        'Investor': 'investor audience interested in market opportunity, growth potential, competitive differentiation, and financial metrics'
+    }
+    return contexts.get(persona, contexts['Generic'])

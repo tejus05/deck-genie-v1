@@ -42,7 +42,6 @@ def render_ui():
     elif not isinstance(st.session_state.deleted_slides, set):
         st.session_state.deleted_slides = set()
     else:
-        # Additional cleanup - ensure all items are strings
         try:
             st.session_state.deleted_slides = {
                 item for item in st.session_state.deleted_slides 
@@ -51,25 +50,21 @@ def render_ui():
         except (TypeError, AttributeError):
             st.session_state.deleted_slides = set()
     
-    # Callback function to handle checkbox changes
     def toggle_demo():
         st.session_state.use_demo = not st.session_state.use_demo
     
-    # Function to reset presentation state
     def reset_presentation():
         st.session_state.presentation_generated = False
         st.session_state.original_content = None
         # Clear editor state explicitly
-        editor_keys = ['editor_content', 'slide_order', 'deleted_slides', 'has_modifications', 'uploaded_images']
+        editor_keys = ['editor_content', 'slide_order', 'deleted_slides', 'has_modifications', 'uploaded_images', 'preview_slides', 'persistent_preview_generator']
         for key in editor_keys:
             if key in st.session_state:
                 del st.session_state[key]
-        # Clear any other editor-related keys
         for key in list(st.session_state.keys()):
             if key.startswith(('title_', 'bullet_', 'feature_', 'paragraph_', 'cta_', 'subtitle_', 'delete_', 'add_', 'image_', 'remove_')):
                 del st.session_state[key]
     
-    # Show reset button if presentation is generated
     if st.session_state.get('presentation_generated', False):
         col1, col2 = st.columns([3, 1])
         with col2:
@@ -77,9 +72,7 @@ def render_ui():
                 reset_presentation()
                 st.rerun()
     
-    # Only show the form if no presentation is generated
     if not st.session_state.get('presentation_generated', False):
-        # Checkbox outside the form to toggle demo data
         st.checkbox("Use Demo Data", value=st.session_state.use_demo, on_change=toggle_demo)
         
         with st.form("presentation_form"):
@@ -88,71 +81,43 @@ def render_ui():
             with col1:
                 demo_data = load_demo_data()
                 
-                if st.session_state.use_demo:
-                    company_name = st.text_input("Company Name", value=demo_data["company_name"])
-                    product_name = st.text_input("Product Name", value=demo_data["product_name"])
-                    target_audience = st.text_input("Target Audience", value=demo_data["target_audience"])
-                    problem_statement = st.text_area("Problem Statement (max 200 words)", 
-                                                   value=demo_data["problem_statement"],
-                                                   height=150)
-                    key_features = st.text_area("Key Features (one per line, max 6)", 
-                                              value=demo_data["key_features"],
-                                              height=150)
-                    competitive_advantage = st.text_area("Competitive Advantage (max 150 words)",
-                                                       value=demo_data["competitive_advantage"],
-                                                       height=150)
-                    call_to_action = st.text_input("Call to Action", value=demo_data["call_to_action"])
+                form_values = demo_data if st.session_state.use_demo else {}
+
+                company_name = st.text_input("Company Name", value=form_values.get("company_name", ""))
+                product_name = st.text_input("Product Name", value=form_values.get("product_name", ""))
+                target_audience = st.text_input("Target Audience", value=form_values.get("target_audience", ""))
+                problem_statement = st.text_area("Problem Statement (max 200 words)", 
+                                                   value=form_values.get("problem_statement", ""), height=150)
+                key_features = st.text_area("Key Features (one per line, max 6)", 
+                                              value=form_values.get("key_features", ""), height=150)
+                competitive_advantage = st.text_area("Competitive Advantage (max 150 words)",
+                                                       value=form_values.get("competitive_advantage", ""), height=150)
+                call_to_action = st.text_input("Call to Action", value=form_values.get("call_to_action", ""))
                     
-                    # Presentation customization
-                    st.markdown("### Presentation Customization")
+                st.markdown("### Presentation Customization")
+                
+                persona_options = ["Generic", "Technical", "Marketing", "Executive", "Investor"]
+                persona = st.selectbox(
+                    "Target Persona",
+                    options=persona_options,
+                    index=persona_options.index(form_values.get("persona", "Generic")) if "persona" in form_values else 0,
+                    help="Choose the primary audience persona for language adaptation"
+                )
                     
-                    persona = st.selectbox(
-                        "Target Persona",
-                        options=["balanced", "tech", "marketing"],
-                        index=0,
-                        help="Choose the primary audience persona for language adaptation"
-                    )
-                    
-                    slide_count = st.slider(
-                        "Number of Slides",
-                        min_value=5,
-                        max_value=10,
-                        value=7,
-                        help="Choose how many slides you want in your presentation"
-                    )
-                else:
-                    company_name = st.text_input("Company Name")
-                    product_name = st.text_input("Product Name")
-                    target_audience = st.text_input("Target Audience")
-                    problem_statement = st.text_area("Problem Statement (max 200 words)", height=150)
-                    key_features = st.text_area("Key Features (one per line, max 6)", height=150)
-                    competitive_advantage = st.text_area("Competitive Advantage (max 150 words)", height=150)
-                    call_to_action = st.text_input("Call to Action")
-                    
-                    # Presentation customization
-                    st.markdown("### Presentation Customization")
-                    
-                    persona = st.selectbox(
-                        "Target Persona",
-                        options=["balanced", "tech", "marketing"],
-                        index=0,
-                        help="Choose the primary audience persona for language adaptation"
-                    )
-                    
-                    slide_count = st.slider(
-                        "Number of Slides",
-                        min_value=5,
-                        max_value=10,
-                        value=7,
-                        help="Choose how many slides you want in your presentation"
-                    )
+                slide_count = st.slider(
+                    "Number of Slides",
+                    min_value=5, max_value=10,
+                    value=form_values.get("slide_count", 7),
+                    help="Choose how many slides you want in your presentation (typically 5-10)"
+                )
             
             with col2:
                 st.markdown("### Instructions")
                 st.markdown("""
                 1. Fill out all fields with your product information
-                2. Click 'Generate Presentation' to create your deck
-                3. Download the finished PowerPoint file
+                2. Choose persona and slide count.
+                3. Click 'Generate Presentation' to create your deck
+                4. Download the finished PowerPoint file
                 
                 **Tips for best results:**
                 - Be specific in your problem statement
@@ -161,126 +126,73 @@ def render_ui():
                 - Keep your call to action simple and direct
                 """)
                 
-                st.markdown("### Preview")
-                st.markdown("Your presentation will include these slides:")
-                st.markdown("1. Title Slide")
-                st.markdown("2. Problem Statement")
-                st.markdown("3. Solution Overview")
-                st.markdown("4. Key Features")
-                st.markdown("5. Competitive Advantage") 
-                st.markdown("6. Target Audience")
-                st.markdown("7. Call to Action")
-                st.markdown("*Additional slides may be included based on your selection*")
-            
+                st.markdown("### Preview Scope")
+                st.markdown("Your presentation will include standard slides like Title, Problem, Solution, Features, Advantage, Audience, and CTA. Additional slides (Market, Roadmap, Team) may be included based on persona and slide count.")
+
             submitted = st.form_submit_button("Generate Presentation")
         
         if submitted:
-            # Validate inputs
             errors = []
-            if not company_name or not product_name:
-                errors.append("Company and product names are required")
-            
-            if not target_audience:
-                errors.append("Target audience is required")
-                
-            if not problem_statement:
-                errors.append("Problem statement is required")
-            elif len(problem_statement.split()) > 200:
-                errors.append("Problem statement exceeds 200 words")
-                
-            if not key_features:
-                errors.append("Key features are required")
+            if not company_name or not product_name: errors.append("Company and product names are required")
+            if not target_audience: errors.append("Target audience is required")
+            if not problem_statement: errors.append("Problem statement is required")
+            elif len(problem_statement.split()) > 200: errors.append("Problem statement exceeds 200 words")
+            if not key_features: errors.append("Key features are required")
             else:
                 features_list = [f for f in key_features.strip().split('\n') if f]
-                if len(features_list) > 6:
-                    errors.append("Maximum of 6 key features allowed")
-                    
-            if not competitive_advantage:
-                errors.append("Competitive advantage is required")
-            elif len(competitive_advantage.split()) > 150:
-                errors.append("Competitive advantage exceeds 150 words")
-                
-            if not call_to_action:
-                errors.append("Call to action is required")
+                if len(features_list) > 6: errors.append("Maximum of 6 key features allowed")
+            if not competitive_advantage: errors.append("Competitive advantage is required")
+            elif len(competitive_advantage.split()) > 150: errors.append("Competitive advantage exceeds 150 words")
+            if not call_to_action: errors.append("Call to action is required")
                 
             if errors:
-                for error in errors:
-                    st.error(error)
+                for error in errors: st.error(error)
             else:
                 try:
-                    # Initialize preview generator and slide editor
                     preview_generator = SlidePreviewGenerator()
-                    slide_editor = SlideEditor()
                     
-                    # Set up a modern progress tracking system
                     progress_container = st.container()
                     with progress_container:
-                        # Create a progress bar
                         progress_bar = st.progress(0)
                         progress_status = st.empty()
                         progress_detail = st.empty()
                         
-                        # Step 1: Initialize
                         progress_status.markdown("### 🚀 Starting the creation process...")
-                        progress_detail.markdown("_Analyzing your inputs and preparing the magic_")
+                        progress_detail.markdown("_Analyzing your inputs..._")
                         progress_bar.progress(10)
-                        st.balloons()  # Add a fun element at the start
-                        
-                        # Create live preview container for generation
-                        preview_container_ui, slide_placeholders = preview_generator.create_preview_container()
-                        
-                        # Mark that preview was shown during generation
+                        st.balloons()
+                        preview_generator.create_preview_container()
                         st.session_state.preview_shown_during_generation = True
                         
-                        # Process input data
                         features_list = [f for f in key_features.strip().split('\n') if f]
                         
-                        # Step 2: Content generation with live preview
-                        progress_status.markdown("### 🧠 Crafting your presentation content...")
-                        progress_detail.markdown("_Our AI is creating compelling narratives for your slides_")
-                        # Generate presentation content with live preview updates
                         content = simulate_slide_generation_with_preview(
                             generate_presentation_content,
                             (company_name, product_name, target_audience, problem_statement, 
                              features_list, competitive_advantage, call_to_action, 
-                             persona, slide_count),  # Pass persona and slide_count
-                            progress_bar,
-                            progress_status,
-                            progress_detail,
+                             persona, slide_count),
+                            progress_bar, progress_status, progress_detail,
                             preview_generator,
-                            slide_placeholders
+                            None  # Pass None for slide_placeholders as it's not used
                         )
                         
-                        # Step 3: Designing slides
                         progress_status.markdown("### 🎨 Designing your slides...")
-                        progress_detail.markdown("_Creating a visually appealing presentation that stands out_")
+                        progress_detail.markdown("_Creating a visually appealing presentation..._")
                         progress_bar.progress(70)
                         
-                        # Step 4: Finalizing
-                        progress_status.markdown("### 📊 Assembling your presentation...")
-                        progress_detail.markdown("_Putting everything together in a cohesive package_")
-                        progress_bar.progress(90)
-                        
-                        # Create the PowerPoint presentation
                         filename = f"{sanitize_filename(company_name)}_{sanitize_filename(product_name)}_Overview.pptx"
                         presentation_buffer = create_presentation(content, filename)
                         
-                        # Final step
                         progress_status.markdown("### ✨ Polishing final details...")
-                        progress_detail.markdown("_Adding those final touches of excellence_")
+                        progress_detail.markdown("_Adding final touches..._")
                         progress_bar.progress(100)
                         
-                        # Clear the progress elements
                         progress_container.empty()
-                        
-                        # Show success message
                         st.success("✅ Your presentation is ready!")
                         
-                        # Store the original content in session state for editing
                         st.session_state.original_content = content
                         st.session_state.presentation_generated = True
                         
-                        # Initialize image cache to prevent re-fetching during customization
                         if 'original_images_cache' not in st.session_state:
                             st.session_state.original_images_cache = {}
                     
@@ -288,29 +200,23 @@ def render_ui():
                     st.error(f"An error occurred: {str(e)}")
                     st.exception(e)
     
-    # Render the slide editor after generation (outside the form)
     if st.session_state.get('presentation_generated', False) and st.session_state.get('original_content'):
-        # Create a persistent preview generator for real-time updates
         if 'persistent_preview_generator' not in st.session_state:
             st.session_state.persistent_preview_generator = SlidePreviewGenerator()
-        
         preview_generator = st.session_state.persistent_preview_generator
         
-        # Only show preview if it hasn't been shown during generation
         if not st.session_state.get('preview_shown_during_generation', False):
             preview_generator.create_preview_container()
-            # Render existing slides in the preview
             if st.session_state.get('original_content'):
                 preview_generator.update_preview_with_content(st.session_state.original_content)
         
-        # Download original presentation button (always visible after generation)
         st.markdown("---")
         st.markdown("## 📥 Download Your Presentation")
         
         try:
-            original_filename = f"{sanitize_filename(st.session_state.original_content['metadata']['company_name'])}_{sanitize_filename(st.session_state.original_content['metadata']['product_name'])}_Overview.pptx"
+            original_content_meta = st.session_state.original_content['metadata']
+            original_filename = f"{sanitize_filename(original_content_meta['company_name'])}_{sanitize_filename(original_content_meta['product_name'])}_Overview.pptx"
             
-            # Cache the original presentation buffer to prevent API calls on every re-render
             cache_key = f"original_buffer_{id(st.session_state.original_content)}"
             if cache_key not in st.session_state:
                 st.session_state[cache_key] = create_presentation(st.session_state.original_content, original_filename)
@@ -324,25 +230,21 @@ def render_ui():
                 use_container_width=True,
             )
         except Exception as e:
-            st.error(f"Error creating original presentation: {str(e)}")
+            st.error(f"Error creating original presentation download: {str(e)}")
         
-        # Customization section with tabs
         st.markdown("---")
         st.markdown("## 🛠️ Customize Your Presentation")
         
-        # Initialize slide editor state before using it
         slide_editor = SlideEditor()
         slide_editor.initialize_editor_state(st.session_state.original_content)
-        slide_editor.preview_generator = preview_generator
+        slide_editor.preview_generator = preview_generator # Pass the persistent generator
         
-        # Ensure slide_order is properly initialized before reordering
         if 'slide_order' not in st.session_state:
-            st.session_state.slide_order = slide_editor.slide_keys.copy()
+            st.session_state.slide_order = slide_editor.slide_keys.copy() # Default standard keys
         
         st.markdown("### Reorder your slides using the buttons below")
         slide_editor._render_slide_reordering()
         
-        # Download reordered presentation
         if st.session_state.get('has_modifications', False):
             st.markdown("---")
             st.markdown("## 🔄 Download Reordered Version")
@@ -350,12 +252,14 @@ def render_ui():
             
             try:
                 modified_content = slide_editor._prepare_modified_content(st.session_state.original_content)
-                modified_filename = f"{sanitize_filename(st.session_state.original_content['metadata']['company_name'])}_{sanitize_filename(st.session_state.original_content['metadata']['product_name'])}_Reordered.pptx"
+                modified_filename = f"{sanitize_filename(original_content_meta['company_name'])}_{sanitize_filename(original_content_meta['product_name'])}_Reordered.pptx"
                 
                 from image_manager import ImageManager
+                # Ensure original_images_cache is initialized if using custom images feature
+                # For reordering only, it might not be strictly needed if images are re-fetched by create_custom_presentation
                 image_manager = ImageManager(
-                    st.session_state.get('original_images_cache', {}),
-                    st.session_state.get('original_images_cache', {})
+                    st.session_state.get('uploaded_images', {}), # Custom uploaded images
+                    st.session_state.get('original_images_cache', {}) # Original fetched images
                 )
                 modified_buffer = slide_editor._create_modified_presentation(modified_content, modified_filename, image_manager)
                 
@@ -369,6 +273,5 @@ def render_ui():
             except Exception as e:
                 st.error(f"Error creating reordered presentation: {str(e)}")
 
-# This ensures that the render_ui function is available when imported
 if __name__ == "__main__":
     render_ui()
