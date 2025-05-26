@@ -1,598 +1,445 @@
 import google.generativeai as genai
-from typing import List, Dict, Any
+from typing import Dict, List, Any
+import json
 
 def generate_title_slide_content(product_name: str, company_name: str) -> Dict[str, Any]:
-    """Generate content for the title slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate title slide content."""
+    model = genai.GenerativeModel('gemini-pro')
+    
     prompt = f"""
-    Create a compelling and concise title slide content for a B2B SaaS product presentation.
+    Create a professional title slide for a business presentation with these details:
+    - Product name: {product_name}
+    - Company name: {company_name}
     
-    Product: {product_name}
-    Company: {company_name}
+    Return a JSON object with these fields:
+    - title: The main title for the slide (should include the product name)
+    - subtitle: A subtitle (should include the company name)
+    - product_name: The product name for reference
     
-    Generate a short subtitle (1 line) that highlights the product's key value proposition.
-    Keep it professional and business-focused.
-    
-    Return the result as JSON with the following fields:
-    - title: The product name
-    - subtitle: A concise subtitle that captures the product's value proposition
-    - company: The company name
+    Make the title concise but impactful. Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": product_name,
-                "subtitle": "Innovative Software Solution",
-                "company": company_name
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": product_name,
-            "subtitle": "Innovative Software Solution",
-            "company": company_name
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = f"{product_name}"
+    if not content.get("subtitle"):
+        content["subtitle"] = f"Presented by {company_name}"
+    content["product_name"] = product_name
     
     return content
 
 def generate_problem_slide_content(problem_statement: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the problem slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate problem slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical pain points and challenges that engineers and technical teams face."
+    elif persona == "Marketing":
+        persona_specific = "Focus on market challenges and customer pain points that affect business outcomes."
+    elif persona == "Executive":
+        persona_specific = "Focus on business impact, costs, risks, and organizational challenges."
+    elif persona == "Investor":
+        persona_specific = "Focus on market gaps, inefficiencies, and opportunities for disruption and growth."
     
     prompt = f"""
-    Create concise problem slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a problem statement slide based on this description:
+    "{problem_statement}"
     
-    Problem Statement: {problem_statement}
+    {persona_specific}
     
-    Extract 3 key pain points from this statement and format them as short, impactful bullet points.
+    Return a JSON object with these fields:
+    - title: A compelling slide title about the problem
+    - pain_points: An array of 3-4 specific pain points or challenges extracted/derived from the problem statement
     
-    Return the result as JSON with the following fields:
-    - title: A compelling problem slide title (e.g., "The Challenge" or similar)
-    - pain_points: An array of 3 concise bullet points highlighting key problems
-    - description: A short (2-3 sentence) summary of the overall problem
+    Format as valid JSON only. Each bullet point should be concise but impactful.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": "The Challenge",
-                "pain_points": [
-                    "Businesses struggle with increasing complexity",
-                    "Manual processes lead to inefficiency",
-                    "Legacy systems create security vulnerabilities"
-                ],
-                "description": problem_statement[:100] + "..."
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": "The Challenge",
-            "pain_points": [
-                "Businesses struggle with increasing complexity",
-                "Manual processes lead to inefficiency",
-                "Legacy systems create security vulnerabilities"
-            ],
-            "description": problem_statement[:100] + "..."
-        }
+    # Ensure correct fields exist with good defaults
+    if not content.get("title"):
+        content["title"] = "The Problem"
+    if not content.get("pain_points") or not isinstance(content.get("pain_points"), list):
+        # Extract simple bullet points from the problem statement
+        content["pain_points"] = [s.strip() + "." for s in problem_statement.split(". ") if s.strip()][:3]
     
     return content
 
 def generate_solution_slide_content(product_name: str, problem_statement: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the solution slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate solution slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on how the solution works technically and its architecture."
+    elif persona == "Marketing":
+        persona_specific = "Focus on benefits, unique value, and how it solves customer problems."
+    elif persona == "Executive":
+        persona_specific = "Focus on business impact, ROI, and strategic advantages."
+    elif persona == "Investor":
+        persona_specific = "Focus on market opportunity, scalability, and competitive differentiation."
     
     prompt = f"""
-    Create solution slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a solution overview slide for a product called "{product_name}" that addresses this problem:
+    "{problem_statement}"
     
-    Product Name: {product_name}
-    Problem Statement: {problem_statement}
+    {persona_specific}
     
-    Explain how this product solves the described problem.
+    Return a JSON object with these fields:
+    - title: A compelling slide title introducing the solution (should include the product name)
+    - paragraph: A concise paragraph (60-80 words) that explains how {product_name} solves the problem
     
-    Return the result as JSON with the following fields:
-    - title: A solution-focused slide title (e.g., "Our Solution" or incorporating the product name)
-    - value_proposition: A single-sentence core value proposition  
-    - description: A concise (2-3 sentence) explanation of how the product solves the problem
+    The paragraph should clearly articulate the value proposition without technical jargon.
+    Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": f"Introducing {product_name}",
-                "value_proposition": f"{product_name} streamlines operations and boosts efficiency",
-                "description": f"{product_name} offers a comprehensive solution to address the challenges faced by organizations today."
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": f"Introducing {product_name}",
-            "value_proposition": f"{product_name} streamlines operations and boosts efficiency",
-            "description": f"{product_name} offers a comprehensive solution to address the challenges faced by organizations today."
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = f"Introducing {product_name}"
+    if not content.get("paragraph"):
+        content["paragraph"] = f"{product_name} is designed to address these challenges with an innovative approach that helps organizations achieve better outcomes."
     
     return content
 
 def generate_features_slide_content(key_features: List[str], persona: str) -> Dict[str, Any]:
-    """Generate content for the features slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate features slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
-    features_text = "\n".join([f"- {feature}" for feature in key_features])
+    # Limit to 5 features
+    features_text = "\n".join(f"- {f}" for f in key_features[:5])
+    
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical capabilities and specifications."
+    elif persona == "Marketing":
+        persona_specific = "Focus on benefits and value to customers."
+    elif persona == "Executive":
+        persona_specific = "Focus on business impact and strategic advantages."
+    elif persona == "Investor":
+        persona_specific = "Focus on market differentiation and competitive advantages."
     
     prompt = f"""
-    Create key features slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
-    
-    Features:
+    Create a key features slide based on these features:
     {features_text}
     
-    Return the result as JSON with the following fields:
-    - title: A features-focused slide title
-    - features: An array of feature objects, each containing:
-      - name: The feature name/title
-      - description: A short (1 sentence) benefit-focused description
+    {persona_specific}
+    
+    Return a JSON object with these fields:
+    - title: A slide title for key features
+    - features: A refined list of the key features (keep the same features but enhance their descriptions)
+    
+    Each feature should be concise but clear. Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            simple_features = []
-            for i, feature in enumerate(key_features[:6]):  # Limit to first 6 features
-                if ":" in feature:
-                    name, desc = feature.split(":", 1)
-                    simple_features.append({"name": name.strip(), "description": desc.strip()})
-                else:
-                    simple_features.append({"name": feature, "description": "Provides significant business value"})
-            
-            content = {
-                "title": "Key Features",
-                "features": simple_features
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        simple_features = []
-        for i, feature in enumerate(key_features[:6]):  # Limit to first 6 features
-            if ":" in feature:
-                name, desc = feature.split(":", 1)
-                simple_features.append({"name": name.strip(), "description": desc.strip()})
-            else:
-                simple_features.append({"name": feature, "description": "Provides significant business value"})
-        
-        content = {
-            "title": "Key Features",
-            "features": simple_features
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = "Key Features"
+    if not content.get("features") or not isinstance(content.get("features"), list):
+        content["features"] = key_features[:5]
     
     return content
 
 def generate_advantage_slide_content(competitive_advantage: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the competitive advantage slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate competitive advantage slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical superiority and unique capabilities."
+    elif persona == "Marketing":
+        persona_specific = "Focus on market differentiation and customer benefits."
+    elif persona == "Executive":
+        persona_specific = "Focus on business impact, ROI, and strategic advantages."
+    elif persona == "Investor":
+        persona_specific = "Focus on market positioning, barriers to entry, and sustainable competitive edges."
     
     prompt = f"""
-    Create competitive advantage slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a competitive advantage slide based on this statement:
+    "{competitive_advantage}"
     
-    Competitive Advantage details:
-    {competitive_advantage}
+    {persona_specific}
     
-    Extract 3-4 key differentiators from this information.
+    Return a JSON object with these fields:
+    - title: A compelling slide title about competitive advantages
+    - differentiators: An array of 3-4 key differentiators or advantages
     
-    Return the result as JSON with the following fields:
-    - title: A competitive advantage slide title (e.g., "Why Choose Us" or similar)
-    - differentiators: An array of differentiation points (3-4 items), each containing:
-      - point: The competitive advantage point
-      - description: A brief explanation of why it matters
+    Make each differentiator concise but specific. Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": "Why Choose Us",
-                "differentiators": [
-                    {"point": "Superior Performance", "description": "Our solution delivers faster results with greater accuracy"},
-                    {"point": "Easy Integration", "description": "Seamlessly fits into your existing technology stack"},
-                    {"point": "Exceptional Support", "description": "24/7 access to expert assistance"}
-                ]
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": "Why Choose Us",
-            "differentiators": [
-                {"point": "Superior Performance", "description": "Our solution delivers faster results with greater accuracy"},
-                {"point": "Easy Integration", "description": "Seamlessly fits into your existing technology stack"},
-                {"point": "Exceptional Support", "description": "24/7 access to expert assistance"}
-            ]
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = "Our Competitive Advantage"
+    if not content.get("differentiators") or not isinstance(content.get("differentiators"), list):
+        # Extract simple bullet points from the competitive advantage
+        content["differentiators"] = [s.strip() + "." for s in competitive_advantage.split(". ") if s.strip()][:3]
     
     return content
 
 def generate_audience_slide_content(target_audience: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the target audience slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate target audience slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical roles, use cases, and technical needs."
+    elif persona == "Marketing":
+        persona_specific = "Focus on demographics, psychographics, and audience pain points."
+    elif persona == "Executive":
+        persona_specific = "Focus on key decision-makers, organizational impact, and business needs."
+    elif persona == "Investor":
+        persona_specific = "Focus on market segments, target market size, and customer acquisition strategy."
     
     prompt = f"""
-    Create target audience slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a target audience slide based on this description:
+    "{target_audience}"
     
-    Target Audience:
-    {target_audience}
+    {persona_specific}
     
-    Return the result as JSON with the following fields:
-    - title: A target audience focused slide title
-    - audience_segments: An array of 2-3 key audience segments or personas
-    - use_cases: An array of 2-3 primary use cases for these segments
+    Return a JSON object with these fields:
+    - title: A compelling slide title about the target audience
+    - paragraph: A concise paragraph (60-80 words) that provides a rich description of the target audience
+    
+    Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": "Who We Serve",
-                "audience_segments": ["Enterprise Teams", "Mid-Market Companies", "Service Providers"],
-                "use_cases": [
-                    "Streamlining Operations",
-                    "Enhancing Security Measures",
-                    "Improving Customer Experiences"
-                ]
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": "Who We Serve",
-            "audience_segments": ["Enterprise Teams", "Mid-Market Companies", "Service Providers"],
-            "use_cases": [
-                "Streamlining Operations",
-                "Enhancing Security Measures",
-                "Improving Customer Experiences"
-            ]
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = "Target Audience"
+    if not content.get("paragraph"):
+        content["paragraph"] = target_audience
     
     return content
 
 def generate_cta_slide_content(call_to_action: str, product_name: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the call to action slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate call to action slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical next steps like demos, trials, or technical discussions."
+    elif persona == "Marketing":
+        persona_specific = "Focus on engagement, lead generation, and customer journey."
+    elif persona == "Executive":
+        persona_specific = "Focus on high-level business discussions, partnerships, and strategic decisions."
+    elif persona == "Investor":
+        persona_specific = "Focus on investment opportunities, funding rounds, or partnership discussions."
     
     prompt = f"""
-    Create call-to-action slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a call-to-action slide based on this CTA:
+    "{call_to_action}"
     
-    Product Name: {product_name}
-    Call to Action: {call_to_action}
+    Product name: {product_name}
+    {persona_specific}
     
-    Return the result as JSON with the following fields:
-    - title: An action-oriented slide title
-    - cta_main: The primary call-to-action statement (should incorporate the provided CTA)
-    - next_steps: An array of 2-3 specific next steps the audience can take
-    - contact_info: Placeholder for contact information (generic)
+    Return a JSON object with these fields:
+    - title: An engaging slide title for the call to action
+    - cta_text: A clear, compelling call-to-action statement
+    - bullets: (optional) An array of 2-3 supporting points or next steps
+    
+    Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": "Next Steps",
-                "cta_main": call_to_action,
-                "next_steps": [
-                    "Schedule a demo",
-                    "Speak with our specialists",
-                    "Request a custom quote"
-                ],
-                "contact_info": "example@company.com | (555) 123-4567"
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": "Next Steps",
-            "cta_main": call_to_action,
-            "next_steps": [
-                "Schedule a demo",
-                "Speak with our specialists",
-                "Request a custom quote"
-            ],
-            "contact_info": "example@company.com | (555) 123-4567"
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = "Get Started Today"
+    if not content.get("cta_text"):
+        content["cta_text"] = call_to_action or f"Contact us to learn more about {product_name}"
     
     return content
 
 def generate_market_slide_content(target_audience: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the market analysis slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate market opportunity slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Investor" or persona == "Executive":
+        persona_specific = "Include specific market size numbers, growth rates, and market opportunity details."
     
     prompt = f"""
-    Create market analysis slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a market opportunity slide for a product targeting this audience:
+    "{target_audience}"
     
-    Target Audience: {target_audience}
+    {persona_specific}
     
-    Return the result as JSON with the following fields:
-    - title: A market-focused slide title
-    - market_size: A statement about market size/opportunity
-    - trends: An array of 2-3 relevant industry trends
-    - growth_points: An array of 2-3 growth indicators or statistics (use realistic but general numbers)
+    Return a JSON object with these fields:
+    - title: A compelling slide title about the market opportunity
+    - market_size: A specific market size figure with dollar amount and timeframe (e.g. "$25B by 2025")
+    - growth_rate: Annual growth rate with percentage (e.g. "15% CAGR")
+    - description: A brief paragraph about the market opportunity and trends
+    
+    Be specific and data-driven with realistic but impressive figures. Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": "Market Opportunity",
-                "market_size": "The global market is projected to reach $25B by 2025, growing at 15% CAGR",
-                "trends": [
-                    "Increasing adoption of cloud-based solutions",
-                    "Growing demand for automation and AI integration",
-                    "Rising focus on data security and compliance"
-                ],
-                "growth_points": [
-                    "Enterprise segment growing at 18% annually",
-                    "35% of companies planning increased investment",
-                    "ROI realized within 6 months for 70% of customers"
-                ]
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": "Market Opportunity",
-            "market_size": "The global market is projected to reach $25B by 2025, growing at 15% CAGR",
-            "trends": [
-                "Increasing adoption of cloud-based solutions",
-                "Growing demand for automation and AI integration",
-                "Rising focus on data security and compliance"
-            ],
-            "growth_points": [
-                "Enterprise segment growing at 18% annually",
-                "35% of companies planning increased investment",
-                "ROI realized within 6 months for 70% of customers"
-            ]
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = "Market Opportunity"
+    if not content.get("market_size"):
+        content["market_size"] = "$25B by 2025"
+    if not content.get("growth_rate"):
+        content["growth_rate"] = "15% CAGR"
+    if not content.get("description"):
+        content["description"] = "The market is experiencing significant growth as organizations increasingly recognize the need for innovative solutions in this space."
     
     return content
 
 def generate_roadmap_slide_content(product_name: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the product roadmap slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    """Generate product roadmap slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
-    persona_context = get_persona_context(persona)
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical features, integrations, and architecture evolution."
+    elif persona == "Marketing":
+        persona_specific = "Focus on customer-facing features and market expansion."
+    elif persona == "Executive":
+        persona_specific = "Focus on strategic milestones, market expansion, and business objectives."
+    elif persona == "Investor":
+        persona_specific = "Focus on growth milestones, market expansion, and revenue phases."
     
     prompt = f"""
-    Create product roadmap slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a product roadmap slide for "{product_name}" with three clear phases.
     
-    Product Name: {product_name}
+    {persona_specific}
     
-    Return the result as JSON with the following fields:
-    - title: A roadmap-focused slide title
-    - current_quarter: Features available now (array of 2-3 items)
-    - next_quarter: Features coming soon (array of 2-3 items)
-    - future: Strategic direction (array of 1-2 items)
+    Return a JSON object with these fields:
+    - title: A slide title for the product roadmap (include product name)
+    - phases: An array of 3 phase objects, each containing:
+      - name: The phase name (e.g., "Phase 1: Foundation")
+      - items: An array of 3-4 key deliverables or milestones for that phase
+    
+    Make the roadmap realistic and strategic. Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": f"{product_name} Roadmap",
-                "current_quarter": [
-                    "Core functionality and integrations",
-                    "Advanced analytics dashboard",
-                    "Mobile application support"
-                ],
-                "next_quarter": [
-                    "AI-powered recommendations",
-                    "Extended API capabilities",
-                    "Enhanced security features"
-                ],
-                "future": [
-                    "International expansion",
-                    "Enterprise-scale solutions"
-                ]
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = f"{product_name}: Product Roadmap"
+    
+    # Ensure phases exist and have the right structure
+    if not content.get("phases") or not isinstance(content.get("phases"), list):
+        content["phases"] = [
+            {
+                "name": "Phase 1",
+                "items": ["Initial launch", "Core features", "First customers"]
+            },
+            {
+                "name": "Phase 2",
+                "items": ["Advanced analytics", "Integration APIs", "Expanded support"]
+            },
+            {
+                "name": "Phase 3",
+                "items": ["Enterprise features", "Global expansion", "Industry partnerships"]
             }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": f"{product_name} Roadmap",
-            "current_quarter": [
-                "Core functionality and integrations",
-                "Advanced analytics dashboard",
-                "Mobile application support"
-            ],
-            "next_quarter": [
-                "AI-powered recommendations",
-                "Extended API capabilities",
-                "Enhanced security features"
-            ],
-            "future": [
-                "International expansion",
-                "Enterprise-scale solutions"
-            ]
-        }
+        ]
+    else:
+        # Fix any phases that don't have the right structure
+        for i, phase in enumerate(content["phases"]):
+            if not isinstance(phase, dict):
+                content["phases"][i] = {
+                    "name": f"Phase {i+1}",
+                    "items": ["Milestone 1", "Milestone 2", "Milestone 3"]
+                }
+            elif "name" not in phase:
+                phase["name"] = f"Phase {i+1}"
+            elif "items" not in phase or not isinstance(phase["items"], list):
+                phase["items"] = ["Milestone 1", "Milestone 2", "Milestone 3"]
     
     return content
 
 def generate_team_slide_content(company_name: str, persona: str) -> Dict[str, Any]:
-    """Generate content for the team overview slide."""
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    persona_context = get_persona_context(persona)
+    """Generate team slide content."""
+    model = genai.GenerativeModel('gemini-pro')
     
     prompt = f"""
-    Create team overview slide content for a B2B SaaS product presentation.
-    Adapt the content for a {persona_context}.
+    Create a team slide for "{company_name}" with fictional leadership team members.
     
-    Company Name: {company_name}
+    Return a JSON object with these fields:
+    - title: A slide title for the team/leadership slide
+    - team_members: An array of 4 team member objects, each containing:
+      - name: The team member's name
+      - role: Their role or title
+    - tagline: A brief company tagline or mission statement
     
-    Return the result as JSON with the following fields:
-    - title: A team-focused slide title
-    - team_highlight: A brief statement about the team's expertise/experience
-    - key_roles: An array of 3-4 generic leadership positions with brief descriptions
+    Be professional and diverse. Format as valid JSON only.
     """
     
     response = model.generate_content(prompt)
+    content = extract_json_from_response(response.text)
     
-    # Process the response to extract structured content
-    try:
-        content_text = response.text
-        # Check if the response contains JSON-like structure and extract it
-        if '{' in content_text and '}' in content_text:
-            start_idx = content_text.find('{')
-            end_idx = content_text.rfind('}') + 1
-            json_str = content_text[start_idx:end_idx]
-            import json
-            content = json.loads(json_str)
-        else:
-            # Fall back to default structure if JSON parsing fails
-            content = {
-                "title": f"Meet the {company_name} Team",
-                "team_highlight": f"Our experienced team brings 50+ years of combined expertise in industry solutions",
-                "key_roles": [
-                    {"role": "Chief Executive Officer", "description": "Strategic vision and leadership"},
-                    {"role": "Chief Technology Officer", "description": "Product architecture and innovation"},
-                    {"role": "VP of Customer Success", "description": "Ensuring client outcomes"},
-                    {"role": "Head of Development", "description": "Platform engineering excellence"}
-                ]
-            }
-    except Exception:
-        # Fallback content if parsing fails
-        content = {
-            "title": f"Meet the {company_name} Team",
-            "team_highlight": f"Our experienced team brings 50+ years of combined expertise in industry solutions",
-            "key_roles": [
-                {"role": "Chief Executive Officer", "description": "Strategic vision and leadership"},
-                {"role": "Chief Technology Officer", "description": "Product architecture and innovation"},
-                {"role": "VP of Customer Success", "description": "Ensuring client outcomes"},
-                {"role": "Head of Development", "description": "Platform engineering excellence"}
-            ]
-        }
+    # Ensure correct fields exist
+    if not content.get("title"):
+        content["title"] = f"{company_name} Leadership Team"
+    
+    # Ensure team_members exist and have the right structure
+    if not content.get("team_members") or not isinstance(content.get("team_members"), list):
+        content["team_members"] = [
+            {"name": "Alex Johnson", "role": "Chief Executive Officer"},
+            {"name": "Sam Washington", "role": "Chief Technology Officer"},
+            {"name": "Jordan Smith", "role": "VP of Product"},
+            {"name": "Taylor Rivera", "role": "VP of Customer Success"}
+        ]
+    
+    # Ensure tagline exists
+    if not content.get("tagline"):
+        content["tagline"] = f"Building innovative solutions for tomorrow's challenges"
     
     return content
 
-def get_persona_context(persona: str) -> str:
-    """Get persona-specific context for prompts."""
-    contexts = {
-        'Technical': 'technical audience who appreciates detailed specifications, architecture insights, and implementation details',
-        'Marketing': 'business audience focused on outcomes, benefits, market impact, and customer success stories',
-        'Generic': 'mixed audience requiring both technical credibility and business value focus',
-        'Executive': 'executive audience focused on business impact, ROI, strategic alignment, and high-level benefits',
-        'Investor': 'investor audience interested in market opportunity, growth potential, competitive differentiation, and financial metrics'
-    }
-    return contexts.get(persona, contexts['Generic'])
+def extract_json_from_response(response_text: str) -> Dict[str, Any]:
+    """Extract JSON from model response, handling various formats."""
+    # If the response is already a dict, return it
+    if isinstance(response_text, dict):
+        return response_text
+    
+    # Handle string response
+    try:
+        # Look for JSON block in markdown code blocks
+        if "```json" in response_text:
+            json_text = response_text.split("```json")[1].split("```")[0].strip()
+            return json.loads(json_text)
+        
+        # Look for JSON block with just code blocks
+        elif "```" in response_text:
+            json_text = response_text.split("```")[1].split("```")[0].strip()
+            return json.loads(json_text)
+            
+        # Try to parse the entire response as JSON
+        else:
+            return json.loads(response_text.strip())
+    except:
+        try:
+            # Try to extract just the JSON part with braces
+            if "{" in response_text and "}" in response_text:
+                json_text = response_text[response_text.find("{"):response_text.rfind("}")+1]
+                return json.loads(json_text)
+        except:
+            pass
+    
+    # Return empty dict if all parsing fails
+    print(f"Failed to parse JSON from response: {response_text[:100]}...")
+    return {}

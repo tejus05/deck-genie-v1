@@ -75,9 +75,13 @@ def create_presentation(content: Dict[str, Any], filename: str) -> io.BytesIO:
 def apply_text_formatting(text_frame, font_name=FONTS["body"], size=FONT_SIZES["body"], 
                          bold=False, color=COLORS["black"], alignment=PP_ALIGN.LEFT):
     """Apply consistent text formatting to a text frame."""
-    text_frame.paragraphs[0].alignment = alignment
+    text_frame.word_wrap = True
+    text_frame.auto_size = False  # Prevent auto-sizing to control overflow
     
     for paragraph in text_frame.paragraphs:
+        paragraph.alignment = alignment
+        paragraph.line_spacing = 1.2  # Better line spacing for readability
+        
         for run in paragraph.runs:
             run.font.name = font_name
             run.font.size = Pt(size)
@@ -86,8 +90,8 @@ def apply_text_formatting(text_frame, font_name=FONTS["body"], size=FONT_SIZES["
 
 def create_title_slide(prs: Presentation, content: Dict[str, str]):
     """Create the title slide."""
-    # Use title slide layout
-    slide_layout = prs.slide_layouts[0]  # Title Slide layout
+    # Use blank layout for consistent control across all slides
+    slide_layout = prs.slide_layouts[6]  # Blank layout
     slide = prs.slides.add_slide(slide_layout)
     
     # Set background to white
@@ -96,76 +100,102 @@ def create_title_slide(prs: Presentation, content: Dict[str, str]):
     fill.solid()
     fill.fore_color.rgb = RGBColor.from_string(COLORS["white"])
     
-    # Title
-    title = slide.shapes.title
-    title.text = content["title"]
-    apply_text_formatting(
-        title.text_frame, 
-        font_name=FONTS["title"], 
-        size=FONT_SIZES["title_slide"], 
-        bold=True, 
-        alignment=PP_ALIGN.CENTER
-    )
-    
-    # Company name (subtitle)
-    subtitle = slide.placeholders[1]
-    subtitle.text = content["subtitle"]
-    apply_text_formatting(
-        subtitle.text_frame, 
-        font_name=FONTS["body"], 
-        size=FONT_SIZES["subtitle"], 
-        bold=False, 
-        alignment=PP_ALIGN.CENTER
-    )
-
-def create_problem_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
-    """Create the problem statement slide."""
-    # Use blank layout to avoid unwanted placeholder elements
-    slide_layout = prs.slide_layouts[6]  # Blank layout
-    slide = prs.slides.add_slide(slide_layout)
-    
-    # Add title manually
-    title_left = Inches(1.0)
-    title_top = Inches(0.5)
-    title_width = Inches(11.33)
-    title_height = Inches(1.0)
+    # Title - centered and positioned at top third
+    title_left = Inches(0.5)
+    title_top = Inches(2.0)  # Move down from top
+    title_width = Inches(12.33)
+    title_height = Inches(2.0)  # Taller to handle multi-line titles
     
     title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
     title_tf = title_box.text_frame
+    title_tf.word_wrap = True
+    title_tf.auto_size = False
     title_p = title_tf.paragraphs[0]
-    title_p.text = content["title"]
-    title_p.alignment = PP_ALIGN.LEFT
     
-    # Apply title formatting and ensure it stays on one line
+    # Replace product name placeholder
+    product_name = content.get("product_name", "")
+    clean_title = content["title"].replace("[Product Name]", product_name)
+    title_p.text = clean_title
+    title_p.alignment = PP_ALIGN.CENTER
+    
+    # Apply bold, large title formatting with proper font
     for run in title_p.runs:
         run.font.name = FONTS["title"]
-        run.font.size = Pt(FONT_SIZES["title"])
+        run.font.size = Pt(40)  # Larger size for title slide
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(COLORS["black"])
-    # Ensure title wraps naturally if it's too long
+    
+    # Subtitle - centered and positioned below title
+    subtitle_left = Inches(0.5)
+    subtitle_top = Inches(4.0)  # Position below title
+    subtitle_width = Inches(12.33)
+    subtitle_height = Inches(1.0)
+    
+    subtitle_box = slide.shapes.add_textbox(subtitle_left, subtitle_top, subtitle_width, subtitle_height)
+    subtitle_tf = subtitle_box.text_frame
+    subtitle_tf.word_wrap = True
+    subtitle_tf.auto_size = False
+    subtitle_p = subtitle_tf.paragraphs[0]
+    subtitle_p.text = content["subtitle"]
+    subtitle_p.alignment = PP_ALIGN.CENTER
+    
+    # Apply subtitle formatting
+    for run in subtitle_p.runs:
+        run.font.name = FONTS["body"]
+        run.font.size = Pt(28)  # Larger for better visibility
+        run.font.color.rgb = RGBColor.from_string(COLORS["black"])
+
+def create_problem_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
+    """Create the problem statement slide."""
+    slide_layout = prs.slide_layouts[6]  # Blank layout
+    slide = prs.slides.add_slide(slide_layout)
+    
+    product_name = presentation_context.get("metadata", {}).get("product_name", "")
+    
+    # Add title with clear positioning
+    title_left = Inches(0.5)  # Consistent margin
+    title_top = Inches(0.5)   # Consistent position from top
+    title_width = Inches(12.33)
+    title_height = Inches(0.8)
+    
+    title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
+    title_tf = title_box.text_frame
     title_tf.word_wrap = True
-      # Create custom text box for bullet points with improved spacing
-    left = Inches(CONTENT_AREA["left"])
-    top = Inches(CONTENT_AREA["top"])
-    width = Inches(CONTENT_AREA["width"])  # Use proper content width to prevent overlap
-    height = Inches(CONTENT_AREA["height"])
+    title_tf.auto_size = False
+    title_p = title_tf.paragraphs[0]
+    
+    # Replace any placeholder text
+    clean_title = content["title"].replace("[Product Name]", product_name)
+    title_p.text = clean_title
+    title_p.alignment = PP_ALIGN.LEFT  # Left aligned for content slides
+    
+    # Apply title formatting
+    for run in title_p.runs:
+        run.font.name = FONTS["title"]
+        run.font.size = Pt(32)  # Consistent title size
+        run.font.bold = True
+        run.font.color.rgb = RGBColor.from_string(COLORS["black"])
+    
+    # Create text box for bullet points
+    left = Inches(0.5)
+    top = Inches(1.7)  # Give space below title
+    width = Inches(7.5)  # Width for text, leaving room for image
+    height = Inches(5.0)
     
     text_box = slide.shapes.add_textbox(left, top, width, height)
     tf = text_box.text_frame
     tf.word_wrap = True
-    tf.margin_left = Inches(0.1)  # Small left margin for bullet points
-    tf.margin_right = Inches(0.1)  # Small right margin to prevent text overflow
-    tf.margin_top = Inches(0.1)
-    tf.margin_bottom = Inches(0.1)
+    tf.auto_size = False
+    tf.margin_left = Inches(0.1)
+    tf.margin_right = Inches(0.1)
     
-    # Clear any existing text and add bullet points
+    # Clear any existing text
     if tf.paragraphs:
         p = tf.paragraphs[0]
         p.text = ""
     else:
         p = tf.add_paragraph()
         
-    # Add bullet points with proper formatting and bullet characters
     # Handle different field names from slide content generators
     bullets = []
     if "pain_points" in content:
@@ -173,109 +203,117 @@ def create_problem_slide(prs: Presentation, content: Dict[str, Any], presentatio
     elif "bullets" in content:
         bullets = content["bullets"]
     elif "differentiators" in content:
-        # Handle differentiators format (objects with point and description)
         bullets = [item["point"] if isinstance(item, dict) else str(item) for item in content["differentiators"]]
     
+    # Keep max 3-4 bullets to prevent crowding
+    max_bullets = 4
+    bullets = bullets[:max_bullets]
+    
     for i, bullet in enumerate(bullets):
-        # Truncate bullet points if they're too long (prevents text overflow)
-        bullet_text = bullet
-        if len(bullet) > 120:  # Reasonable character limit for bullet points
-            bullet_text = bullet[:117] + "..."
+        # Replace product name placeholders
+        clean_bullet = bullet.replace("[Product Name]", product_name) if product_name else bullet
+        
+        # Truncate bullet points if needed
+        max_chars = 85
+        bullet_text = clean_bullet
+        if len(clean_bullet) > max_chars:
+            bullet_text = clean_bullet[:max_chars-3] + "..."
             
         if i == 0:
-            p.text = f"• {bullet_text}"  # Add bullet character
+            p.text = f"• {bullet_text}"
         else:
             p = tf.add_paragraph()
-            p.text = f"• {bullet_text}"  # Add bullet character
+            p.text = f"• {bullet_text}"
         
         # Apply bullet formatting
         p.level = 0
         p.alignment = PP_ALIGN.LEFT
-        
-        # Apply font formatting
         p.font.name = FONTS["body"]
-        p.font.size = Pt(FONT_SIZES["body"])
-        
-        # Apply spacing for better readability
-        p.space_before = Pt(6)  # Add space before each bullet
-        p.space_after = Pt(6)   # Add space after each bullet
+        p.font.size = Pt(20)  # Larger for better readability
+        p.space_before = Pt(10)
+        p.space_after = Pt(10)
+        p.line_spacing = 1.2
     
-    apply_text_formatting(tf)
-    
-    # Add image directly to slide without using placeholder
+    # Add image with proper positioning
     image_data = fetch_image_for_slide("problem", presentation_context, use_placeholders=False)
     
-    # Cache the image for future customizations
+    # Cache the image
     import streamlit as st
     if image_data and 'original_images_cache' in st.session_state:
-        # Save a copy of the image data to cache
         image_data.seek(0)
         cached_data = image_data.read()
         st.session_state.original_images_cache['problem_slide'] = cached_data
-        # Reset the image data for use
         image_data.seek(0)
     
     if image_data:
-        # Position the image on the right side of the 16:9 slide
+        # Position image on right side
         pic = slide.shapes.add_picture(
             image_data,
-            Inches(IMAGE_AREA["left"]),     # Positioned further right for 16:9 format
-            Inches(IMAGE_AREA["top"]),
-            Inches(IMAGE_AREA["width"]),    # Adjusted width for 16:9
-            Inches(IMAGE_AREA["height"])
+            Inches(8.3),   # Positioned for proper alignment
+            Inches(2.0),   # Centered vertically
+            Inches(4.5),   # Consistent width
+            Inches(4.0)    # Consistent height
         )
     else:
-        # Add fallback icon as a separate shape
-        icon_left = Inches(IMAGE_AREA["left"] + IMAGE_AREA["width"]/2 - 0.5)
-        icon_top = Inches(IMAGE_AREA["top"] + IMAGE_AREA["height"]/2 - 0.5)
-        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(1), Inches(1))
+        # Add fallback icon with better positioning
+        icon_left = Inches(9.5)
+        icon_top = Inches(3.0)
+        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(2.0), Inches(2.0))
         icon_tf = icon_box.text_frame
+        icon_tf.auto_size = False
         icon_p = icon_tf.paragraphs[0]
         icon_info = get_slide_icon("problem")
         icon_p.text = icon_info["icon"]
         icon_p.alignment = PP_ALIGN.CENTER
-        apply_text_formatting(icon_tf, size=72, alignment=PP_ALIGN.CENTER)
+        apply_text_formatting(icon_tf, size=64, alignment=PP_ALIGN.CENTER)
 
 def create_solution_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
     """Create the solution overview slide."""
-    # Use blank layout to avoid unwanted placeholder elements
     slide_layout = prs.slide_layouts[6]  # Blank layout
     slide = prs.slides.add_slide(slide_layout)
     
-    # Add title manually
-    title_left = Inches(1.0)
+    product_name = presentation_context.get("metadata", {}).get("product_name", "")
+    
+    # Add title with consistent positioning
+    title_left = Inches(0.5)
     title_top = Inches(0.5)
-    title_width = Inches(11.33)
-    title_height = Inches(1.0)
+    title_width = Inches(12.33)
+    title_height = Inches(0.8)
     
     title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
     title_tf = title_box.text_frame
+    title_tf.word_wrap = True
+    title_tf.auto_size = False
     title_p = title_tf.paragraphs[0]
-    title_p.text = content["title"]
+    
+    # Replace any placeholder text
+    clean_title = content["title"].replace("[Product Name]", product_name)
+    title_p.text = clean_title
     title_p.alignment = PP_ALIGN.LEFT
     
-    # Apply title formatting and ensure it stays on one line
+    # Apply title formatting
     for run in title_p.runs:
         run.font.name = FONTS["title"]
-        run.font.size = Pt(FONT_SIZES["title"])
+        run.font.size = Pt(32)
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(COLORS["black"])
-    # Ensure title wraps naturally if it's too long
-    title_tf.word_wrap = True
     
-    # Create custom text box for paragraph content with better spacing
-    left = Inches(CONTENT_AREA["left"])
-    top = Inches(CONTENT_AREA["top"])
-    width = Inches(CONTENT_AREA["width"])  # Use defined width without expansion for proper spacing
-    height = Inches(CONTENT_AREA["height"])
+    # Create custom text box for paragraph content
+    left = Inches(0.5)
+    top = Inches(1.7)
+    width = Inches(7.5)
+    height = Inches(5.0)
+    
     text_box = slide.shapes.add_textbox(left, top, width, height)
     tf = text_box.text_frame
     tf.word_wrap = True
-    tf.margin_right = Inches(0.1)  # Add right margin to prevent text overflow
+    tf.auto_size = False
+    tf.margin_left = Inches(0.1)
+    tf.margin_right = Inches(0.1)
 
     p = tf.paragraphs[0]
-    # Truncate paragraph if it's too long to prevent text overflow
-    # Handle different field names from solution slide content generator
+    
+    # Handle different field names for content
     paragraph_text = ""
     if "paragraph" in content:
         paragraph_text = content["paragraph"]
@@ -284,265 +322,302 @@ def create_solution_slide(prs: Presentation, content: Dict[str, Any], presentati
     elif "value_proposition" in content:
         paragraph_text = content["value_proposition"]
     
-    if len(paragraph_text) > 550:  # Reasonable limit for paragraphs
-        paragraph_text = paragraph_text[:547] + "..."
-    p.text = paragraph_text
+    # Replace product name placeholders
+    clean_paragraph = paragraph_text.replace("[Product Name]", product_name) if product_name else paragraph_text
+    
+    # Truncate paragraph based on available space
+    max_chars = 400
+    if len(clean_paragraph) > max_chars:
+        clean_paragraph = clean_paragraph[:max_chars-3] + "..."
+
+    p.text = clean_paragraph
     
     # Format paragraph with proper spacing
     p.space_before = Pt(6)
     p.space_after = Pt(6)
-    p.line_spacing = 1.2  # Better line spacing
+    p.line_spacing = 1.2
+    p.font.name = FONTS["body"]
+    p.font.size = Pt(20)  # Larger for better readability
     
-    apply_text_formatting(tf)
-    
-    # Add image directly to slide without using placeholder
+    # Add image with consistent positioning
     image_data = fetch_image_for_slide("solution", presentation_context, use_placeholders=False)
     
-    # Cache the image for future customizations
+    # Cache the image
     import streamlit as st
     if image_data and 'original_images_cache' in st.session_state:
-        # Save a copy of the image data to cache
         image_data.seek(0)
         cached_data = image_data.read()
         st.session_state.original_images_cache['solution_slide'] = cached_data
-        # Reset the image data for use
         image_data.seek(0)
     
     if image_data:
-        # Position the image on the right side of the 16:9 slide
+        # Position image on right side with consistent sizing
         pic = slide.shapes.add_picture(
             image_data,
-            Inches(IMAGE_AREA["left"]),     # Positioned further right for 16:9 format
-            Inches(IMAGE_AREA["top"]),
-            Inches(IMAGE_AREA["width"]),    # Adjusted width for 16:9
-            Inches(IMAGE_AREA["height"])
+            Inches(8.3),
+            Inches(2.0),
+            Inches(4.5),
+            Inches(4.0)
         )
     else:
-        # Add fallback icon as a separate shape
-        icon_left = Inches(IMAGE_AREA["left"] + IMAGE_AREA["width"]/2 - 0.5)
-        icon_top = Inches(IMAGE_AREA["top"] + IMAGE_AREA["height"]/2 - 0.5)
-        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(1), Inches(1))
+        # Add fallback icon
+        icon_left = Inches(9.5)
+        icon_top = Inches(3.0)
+        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(2.0), Inches(2.0))
         icon_tf = icon_box.text_frame
+        icon_tf.auto_size = False
         icon_p = icon_tf.paragraphs[0]
         icon_p.text = get_slide_icon("solution")["icon"]
         icon_p.alignment = PP_ALIGN.CENTER
-        apply_text_formatting(icon_tf, size=72, alignment=PP_ALIGN.CENTER)
+        apply_text_formatting(icon_tf, size=64, alignment=PP_ALIGN.CENTER)
 
 def create_features_slide(prs: Presentation, content: Dict[str, Any]):
     """Create the key features slide."""
-    # Use title only layout and add a table
-    slide_layout = prs.slide_layouts[5]  # Title Only layout
-    slide = prs.slides.add_slide(slide_layout)
-      # Title
-    title = slide.shapes.title
-    title.text = content["title"]
-    apply_text_formatting(
-        title.text_frame, 
-        font_name=FONTS["title"], 
-        size=FONT_SIZES["title"], 
-        bold=True
-    )
-    
-    # Create table for features
-    features = content["features"]
-    rows, cols = len(features), 2
-    
-    left = Inches(CONTENT_AREA["left"])
-    top = Inches(CONTENT_AREA["top"])
-    width = Inches(CONTENT_AREA["width"] + IMAGE_AREA["width"])
-    height = Inches(CONTENT_AREA["height"])
-    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
-    # Set column widths - adjusted for 16:9 format
-    table.columns[0].width = Inches(0.5)  # Icon column
-    table.columns[1].width = Inches(11.83)  # Feature text column - wider for 16:9
-    
-    # Add features to table
-    for i, feature in enumerate(features):
-        # Handle both string and dictionary formats for features
-        if isinstance(feature, dict):
-            # Extract feature text from dictionary format
-            feature_text = feature.get('feature', feature.get('name', feature.get('title', str(feature))))
-            icon_text = feature_text
-        else:
-            # Handle string format
-            feature_text = str(feature)
-            icon_text = feature_text
-        
-        # Icon cell
-        icon_cell = table.cell(i, 0)
-        icon = match_icon_to_feature(icon_text)
-        icon_cell.text = icon
-        apply_text_formatting(icon_cell.text_frame, size=16, alignment=PP_ALIGN.CENTER)
-        
-        # Feature cell
-        feature_cell = table.cell(i, 1)
-        feature_cell.text = feature_text
-        apply_text_formatting(feature_cell.text_frame)
-        
-        # Set row height
-        table.rows[i].height = Inches(CONTENT_AREA["height"] / len(features))
-    
-    # Style table with no fill - keep it minimal without borders
-    # since border styling is causing issues
-    for cell in table.iter_cells():
-        cell.fill.background()  # No fill
-        # We're not setting any borders to avoid API compatibility issues
-
-def create_advantage_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
-    """Create the competitive advantage slide."""
-    # Use blank layout to avoid unwanted placeholder elements
-    slide_layout = prs.slide_layouts[6]  # Blank layout
+    slide_layout = prs.slide_layouts[6]  # Blank layout for consistency
     slide = prs.slides.add_slide(slide_layout)
     
-    # Add title manually
-    title_left = Inches(1.0)
+    # Add title with consistent positioning
+    title_left = Inches(0.5)
     title_top = Inches(0.5)
-    title_width = Inches(11.33)
-    title_height = Inches(1.0)
+    title_width = Inches(12.33)
+    title_height = Inches(0.8)
     
     title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
     title_tf = title_box.text_frame
+    title_tf.word_wrap = True
+    title_tf.auto_size = False
     title_p = title_tf.paragraphs[0]
-    title_p.text = content["title"]
+    title_p.text = content["title"].replace("[Product Name]", "")
     title_p.alignment = PP_ALIGN.LEFT
     
-    # Apply title formatting and ensure it stays on one line
+    # Apply title formatting
     for run in title_p.runs:
         run.font.name = FONTS["title"]
-        run.font.size = Pt(FONT_SIZES["title"])
+        run.font.size = Pt(32)
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(COLORS["black"])
-      
-    # Ensure title wraps naturally if it's too long
+    
+    # Get features list
+    features = content["features"]
+    max_features = 5  # Limit to 5 features for better spacing
+    features = features[:max_features]
+    
+    # Create a more visually appealing list
+    left_margin = Inches(1.0)
+    top_start = Inches(1.7)
+    feature_height = Inches(0.9)  # More space between features
+    icon_width = Inches(0.8)
+    text_width = Inches(11.0)
+    
+    for i, feature in enumerate(features):
+        # Handle different feature formats
+        if isinstance(feature, dict):
+            feature_text = feature.get('feature', feature.get('name', feature.get('title', str(feature))))
+            icon_text = feature_text
+        else:
+            feature_text = str(feature)
+            icon_text = feature_text
+        
+        # Truncate feature text if needed
+        max_chars = 100
+        if len(feature_text) > max_chars:
+            feature_text = feature_text[:max_chars-3] + "..."
+
+        # Calculate vertical position
+        top_position = top_start + (i * feature_height)
+        
+        # Add icon
+        icon_box = slide.shapes.add_textbox(left_margin, top_position, icon_width, feature_height)
+        icon_tf = icon_box.text_frame
+        icon_tf.auto_size = False
+        icon_p = icon_tf.paragraphs[0]
+        icon_p.text = match_icon_to_feature(icon_text)
+        icon_p.alignment = PP_ALIGN.CENTER
+        
+        # Apply icon formatting
+        for run in icon_p.runs:
+            run.font.name = FONTS["body"]
+            run.font.size = Pt(24)
+            run.font.bold = True
+        
+        # Add feature text
+        text_left = left_margin + icon_width + Inches(0.3)
+        text_box = slide.shapes.add_textbox(text_left, top_position, text_width, feature_height)
+        text_tf = text_box.text_frame
+        text_tf.word_wrap = True
+        text_tf.auto_size = False
+        text_p = text_tf.paragraphs[0]
+        text_p.text = feature_text
+        text_p.alignment = PP_ALIGN.LEFT
+        
+        # Apply text formatting
+        for run in text_p.runs:
+            run.font.name = FONTS["body"]
+            run.font.size = Pt(20)
+            run.font.color.rgb = RGBColor.from_string(COLORS["black"])
+
+def create_advantage_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
+    """Create the competitive advantage slide."""
+    slide_layout = prs.slide_layouts[6]  # Blank layout
+    slide = prs.slides.add_slide(slide_layout)
+    
+    product_name = presentation_context.get("metadata", {}).get("product_name", "")
+    
+    # Add title with consistent positioning
+    title_left = Inches(0.5)
+    title_top = Inches(0.5)
+    title_width = Inches(12.33)
+    title_height = Inches(0.8)
+    
+    title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
+    title_tf = title_box.text_frame
     title_tf.word_wrap = True
-      
-    # Create custom text box for bullet points with better spacing
-    left = Inches(CONTENT_AREA["left"])
-    top = Inches(CONTENT_AREA["top"])
-    width = Inches(CONTENT_AREA["width"])  # Use defined width without expansion for proper spacing
-    height = Inches(CONTENT_AREA["height"])
+    title_tf.auto_size = False
+    title_p = title_tf.paragraphs[0]
+    title_p.text = content["title"].replace("[Product Name]", product_name)
+    title_p.alignment = PP_ALIGN.LEFT
+    
+    # Apply title formatting
+    for run in title_p.runs:
+        run.font.name = FONTS["title"]
+        run.font.size = Pt(32)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor.from_string(COLORS["black"])
+    
+    # Create text box for bullets with consistent positioning
+    left = Inches(0.5)
+    top = Inches(1.7)
+    width = Inches(7.5)
+    height = Inches(5.0)
     
     text_box = slide.shapes.add_textbox(left, top, width, height)
     tf = text_box.text_frame
     tf.word_wrap = True
-    tf.margin_right = Inches(0.1)  # Add right margin to prevent text overflow
+    tf.auto_size = False
+    tf.margin_left = Inches(0.1)
+    tf.margin_right = Inches(0.1)
     
-    # Clear any existing text and add bullet points
+    # Clear any existing text
     if tf.paragraphs:
         p = tf.paragraphs[0]
         p.text = ""
     else:
         p = tf.add_paragraph()
-          # Add bullet points with proper formatting and bullet characters
-    # Handle different field names from slide content generators
+        
+    # Handle different field names for bulleted content
     bullets = []
     if "differentiators" in content:
-        # Handle differentiators format (objects with point and description)
         bullets = [item["point"] if isinstance(item, dict) else str(item) for item in content["differentiators"]]
     elif "bullets" in content:
         bullets = content["bullets"]
     elif "pain_points" in content:
         bullets = content["pain_points"]
     
+    # Limit bullets for better readability
+    max_bullets = 4
+    bullets = bullets[:max_bullets]
+    
     for i, bullet in enumerate(bullets):
-        # Truncate bullet points if they're too long (prevents text overflow)
-        bullet_text = bullet
-        if len(bullet) > 120:  # Reasonable character limit for bullet points
-            bullet_text = bullet[:117] + "..."
-            
+        # Replace any product name placeholders
+        clean_bullet = bullet.replace("[Product Name]", product_name) if product_name else bullet
+        
+        # Truncate if needed
+        max_chars = 85
+        bullet_text = clean_bullet
+        if len(clean_bullet) > max_chars:
+            bullet_text = clean_bullet[:max_chars-3] + "..."
+
         if i == 0:
-            p.text = f"• {bullet_text}"  # Add bullet character
+            p.text = f"• {bullet_text}"
         else:
             p = tf.add_paragraph()
-            p.text = f"• {bullet_text}"  # Add bullet character
+            p.text = f"• {bullet_text}"
         
         # Apply bullet formatting
         p.level = 0
         p.alignment = PP_ALIGN.LEFT
-        
-        # Apply font formatting
         p.font.name = FONTS["body"]
-        p.font.size = Pt(FONT_SIZES["body"])
-        
-        # Apply spacing for better readability
-        p.space_before = Pt(6)  # Add space before each bullet
-        p.space_after = Pt(6)   # Add space after each bullet
+        p.font.size = Pt(20)  # Larger for better readability
+        p.space_before = Pt(10)
+        p.space_after = Pt(10)
+        p.line_spacing = 1.2
     
-    apply_text_formatting(tf)
-    
-    # Add image directly to slide without using placeholder
+    # Add image with consistent positioning
     image_data = fetch_image_for_slide("advantage", presentation_context, use_placeholders=False)
     
-    # Cache the image for future customizations
+    # Cache the image
     import streamlit as st
     if image_data and 'original_images_cache' in st.session_state:
-        # Save a copy of the image data to cache
         image_data.seek(0)
         cached_data = image_data.read()
         st.session_state.original_images_cache['advantage_slide'] = cached_data
-        # Reset the image data for use
         image_data.seek(0)
     
     if image_data:
-        # Position the image on the right side of the 16:9 slide
+        # Position image with consistent dimensions
         pic = slide.shapes.add_picture(
             image_data,
-            Inches(IMAGE_AREA["left"]),     # Positioned further right for 16:9 format
-            Inches(IMAGE_AREA["top"]),
-            Inches(IMAGE_AREA["width"]),    # Adjusted width for 16:9
-            Inches(IMAGE_AREA["height"])
+            Inches(8.3),
+            Inches(2.0),
+            Inches(4.5),
+            Inches(4.0)
         )
     else:
-        # Add fallback icon as a separate shape
-        icon_left = Inches(IMAGE_AREA["left"] + IMAGE_AREA["width"]/2 - 0.5)
-        icon_top = Inches(IMAGE_AREA["top"] + IMAGE_AREA["height"]/2 - 0.5)
-        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(1), Inches(1))
+        # Add fallback icon
+        icon_left = Inches(9.5)
+        icon_top = Inches(3.0)
+        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(2.0), Inches(2.0))
         icon_tf = icon_box.text_frame
+        icon_tf.auto_size = False
         icon_p = icon_tf.paragraphs[0]
         icon_p.text = get_slide_icon("advantage")["icon"]
         icon_p.alignment = PP_ALIGN.CENTER
-        apply_text_formatting(icon_tf, size=72, alignment=PP_ALIGN.CENTER)
+        apply_text_formatting(icon_tf, size=64, alignment=PP_ALIGN.CENTER)
 
 def create_audience_slide(prs: Presentation, content: Dict[str, Any], presentation_context: Dict[str, Any] = None):
     """Create the target audience slide."""
-    # Use blank layout to avoid unwanted placeholder elements
     slide_layout = prs.slide_layouts[6]  # Blank layout
     slide = prs.slides.add_slide(slide_layout)
     
-    # Add title manually
-    title_left = Inches(1.0)
+    product_name = presentation_context.get("metadata", {}).get("product_name", "")
+    
+    # Add title with consistent positioning
+    title_left = Inches(0.5)
     title_top = Inches(0.5)
-    title_width = Inches(11.33)
-    title_height = Inches(1.0)
+    title_width = Inches(12.33)
+    title_height = Inches(0.8)
     
     title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
     title_tf = title_box.text_frame
+    title_tf.word_wrap = True
+    title_tf.auto_size = False
     title_p = title_tf.paragraphs[0]
-    title_p.text = content["title"]
+    title_p.text = content["title"].replace("[Product Name]", product_name)
     title_p.alignment = PP_ALIGN.LEFT
     
-    # Apply title formatting and ensure it stays on one line
+    # Apply title formatting
     for run in title_p.runs:
         run.font.name = FONTS["title"]
-        run.font.size = Pt(FONT_SIZES["title"])
+        run.font.size = Pt(32)
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(COLORS["black"])
-    # Ensure title wraps naturally if it's too long
-    title_tf.word_wrap = True
     
-    # Create custom text box for paragraph content with better spacing
-    left = Inches(CONTENT_AREA["left"])
-    top = Inches(CONTENT_AREA["top"])
-    width = Inches(CONTENT_AREA["width"])  # Use defined width without expansion for proper spacing
-    height = Inches(CONTENT_AREA["height"])
-      text_box = slide.shapes.add_textbox(left, top, width, height)
+    # Create text box for content with consistent positioning
+    left = Inches(0.5)
+    top = Inches(1.7)
+    width = Inches(7.5)
+    height = Inches(5.0)
+    
+    text_box = slide.shapes.add_textbox(left, top, width, height)
     tf = text_box.text_frame
     tf.word_wrap = True
-    tf.margin_right = Inches(0.1)  # Add right margin to prevent text overflow
+    tf.auto_size = False
+    tf.margin_left = Inches(0.1)
+    tf.margin_right = Inches(0.1)
     
     p = tf.paragraphs[0]
-    # Truncate paragraph if it's too long to prevent text overflow
-    # Handle different field names from audience slide content generator
+    
+    # Handle different field names for text content
     paragraph_text = ""
     if "paragraph" in content:
         paragraph_text = content["paragraph"]
@@ -551,120 +626,139 @@ def create_audience_slide(prs: Presentation, content: Dict[str, Any], presentati
     elif "content" in content:
         paragraph_text = content["content"]
     
-    if len(paragraph_text) > 550:  # Reasonable limit for paragraphs
-        paragraph_text = paragraph_text[:547] + "..."
-    p.text = paragraph_text
+    # Replace product name placeholders
+    clean_paragraph = paragraph_text.replace("[Product Name]", product_name) if product_name else paragraph_text
+    
+    # Truncate if needed
+    max_chars = 400
+    if len(clean_paragraph) > max_chars:
+        clean_paragraph = clean_paragraph[:max_chars-3] + "..."
+
+    p.text = clean_paragraph
     
     # Format paragraph with proper spacing
     p.space_before = Pt(6)
     p.space_after = Pt(6)
-    p.line_spacing = 1.2  # Better line spacing
+    p.line_spacing = 1.2
+    p.font.name = FONTS["body"]
+    p.font.size = Pt(20)  # Larger for better readability
     
-    apply_text_formatting(tf)
-      # Add image directly to slide without using placeholder
+    # Add image with consistent positioning
     image_data = fetch_image_for_slide("audience", presentation_context, use_placeholders=False)
     
-    # Cache the image for future customizations
+    # Cache the image
+    import streamlit as st
     if image_data and 'original_images_cache' in st.session_state:
-        # Save a copy of the image data to cache
         image_data.seek(0)
         cached_data = image_data.read()
         st.session_state.original_images_cache['audience_slide'] = cached_data
-        # Reset the image data for use
         image_data.seek(0)
     
     if image_data:
-        # Position the image on the right side of the 16:9 slide
+        # Position image with consistent dimensions
         pic = slide.shapes.add_picture(
             image_data,
-            Inches(IMAGE_AREA["left"]),     # Positioned further right for 16:9 format
-            Inches(IMAGE_AREA["top"]),
-            Inches(IMAGE_AREA["width"]),    # Adjusted width for 16:9
-            Inches(IMAGE_AREA["height"])
+            Inches(8.3),
+            Inches(2.0),
+            Inches(4.5),
+            Inches(4.0)
         )
     else:
-        # Add fallback icon as a separate shape
-        icon_left = Inches(IMAGE_AREA["left"] + IMAGE_AREA["width"]/2 - 0.5)
-        icon_top = Inches(IMAGE_AREA["top"] + IMAGE_AREA["height"]/2 - 0.5)
-        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(1), Inches(1))
+        # Add fallback icon
+        icon_left = Inches(9.5)
+        icon_top = Inches(3.0)
+        icon_box = slide.shapes.add_textbox(icon_left, icon_top, Inches(2.0), Inches(2.0))
         icon_tf = icon_box.text_frame
+        icon_tf.auto_size = False
         icon_p = icon_tf.paragraphs[0]
         icon_p.text = get_slide_icon("audience")["icon"]
         icon_p.alignment = PP_ALIGN.CENTER
-        apply_text_formatting(icon_tf, size=72, alignment=PP_ALIGN.CENTER)
+        apply_text_formatting(icon_tf, size=64, alignment=PP_ALIGN.CENTER)
 
 def create_cta_slide(prs: Presentation, content: Dict[str, Any]):
     """Create the call to action slide."""
-    # Use title only layout
-    slide_layout = prs.slide_layouts[5]  # Title Only layout
+    slide_layout = prs.slide_layouts[6]  # Blank layout
     slide = prs.slides.add_slide(slide_layout)
     
-    # Title
-    title = slide.shapes.title
-    title.text = content.get("title", "Get Started")
-    apply_text_formatting(
-        title.text_frame, 
-        font_name=FONTS["title"], 
-        size=FONT_SIZES["title"],
-        bold=True
-    )
-    # CTA text (center of slide)
-    left = Inches(1.0)  # Increased margin for better spacing    top = Inches(2.5)
-    width = Inches(11.33)  # Wider for 16:9 format
-    height = Inches(1.5)
+    # Main centered title
+    title_left = Inches(0.5)
+    title_top = Inches(1.5)  # Higher placement
+    title_width = Inches(12.33)
+    title_height = Inches(1.5)
     
-    text_box = slide.shapes.add_textbox(left, top, width, height)
-    tf = text_box.text_frame
-    tf.word_wrap = True
+    title_box = slide.shapes.add_textbox(title_left, title_top, title_width, title_height)
+    title_tf = title_box.text_frame
+    title_tf.word_wrap = True
+    title_tf.auto_size = False
+    title_p = title_tf.paragraphs[0]
+    title_p.text = content.get("title", "Get Started Today")
+    title_p.alignment = PP_ALIGN.CENTER
     
-    p = tf.add_paragraph()
-    p.text = content.get("cta_text", content.get("call_to_action", "Contact us today!"))
-    p.alignment = PP_ALIGN.CENTER
+    # Apply title formatting - larger and bolder
+    for run in title_p.runs:
+        run.font.name = FONTS["title"]
+        run.font.size = Pt(36)  # Larger for emphasis
+        run.font.bold = True
+        run.font.color.rgb = RGBColor.from_string(COLORS["black"])
     
-    apply_text_formatting(
-        tf, 
-        font_name=FONTS["title"], 
-        size=FONT_SIZES["call_to_action"], 
-        bold=True,
-        alignment=PP_ALIGN.CENTER
-    )
+    # CTA text - centered and prominent
+    cta_left = Inches(1.0)
+    cta_top = Inches(3.0)  # Positioned below title
+    cta_width = Inches(11.33)
+    cta_height = Inches(2.0)  # Taller for multi-line CTAs
     
-    # Add any supporting bullet points
+    cta_box = slide.shapes.add_textbox(cta_left, cta_top, cta_width, cta_height)
+    cta_tf = cta_box.text_frame
+    cta_tf.word_wrap = True
+    cta_tf.auto_size = False
+    
+    cta_p = cta_tf.paragraphs[0]
+    cta_text = content.get("cta_text", content.get("call_to_action", "Contact us today to learn more!"))
+    
+    # Don't truncate CTAs - they're often short and important
+    cta_p.text = cta_text
+    cta_p.alignment = PP_ALIGN.CENTER
+    
+    # Apply CTA formatting - prominent and attention-grabbing
+    for run in cta_p.runs:
+        run.font.name = FONTS["title"]
+        run.font.size = Pt(28)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor.from_string(COLORS["black"])
+    
+    # Add any supporting bullets/text if available
     if "bullets" in content and content["bullets"]:
-        bullet_box = slide.shapes.add_textbox(
-            Inches(2.5),  # More indented
-            Inches(4.5),  # More space below the main CTA
-            Inches(8.33), # Narrower for better centering
-            Inches(1.5)   # Enough for a few bullets
-        )
+        bullet_top = Inches(5.0)  # Position below CTA
+        bullet_height = Inches(1.5)
+        
+        bullet_box = slide.shapes.add_textbox(cta_left, bullet_top, cta_width, bullet_height)
         bullet_tf = bullet_box.text_frame
         bullet_tf.word_wrap = True
         
-        for i, bullet in enumerate(content["bullets"]):
+        # Add up to 2 bullets only
+        max_bullets = min(2, len(content["bullets"]))
+        for i in range(max_bullets):
             if i == 0:
-                p = bullet_tf.paragraphs[0]
+                bullet_p = bullet_tf.paragraphs[0]
             else:
-                p = bullet_tf.add_paragraph()
+                bullet_p = bullet_tf.add_paragraph()
+                
+            bullet_p.text = f"• {content['bullets'][i]}"
+            bullet_p.alignment = PP_ALIGN.CENTER
             
-            # Truncate bullet if too long
-            short_bullet = bullet if len(bullet) < 50 else bullet[:47] + "..."
-            p.text = f"• {short_bullet}"
-            p.alignment = PP_ALIGN.CENTER
-            p.space_before = Pt(12)  # More space before each bullet
-            p.space_after = Pt(12)   # More space after each bullet
-        
-        apply_text_formatting(bullet_tf, size=FONT_SIZES["body"] - 2, bold=False, alignment=PP_ALIGN.CENTER)
+            # Format bullet text
+            for run in bullet_p.runs:
+                run.font.name = FONTS["body"]
+                run.font.size = Pt(20)
+                run.font.color.rgb = RGBColor.from_string(COLORS["black"])
     
-    # Optional grey stripe at bottom
-    # Use a textbox with gray background instead of rectangle since add_rectangle is not available
-    left = Inches(0)
-    top = Inches(6.5)
-    width = Inches(13.33)  # Full width of 16:9 slide
-    height = Inches(0.5)
+    # Optional footer bar
+    footer_left = Inches(0)
+    footer_top = Inches(6.5)
+    footer_width = Inches(13.33)
+    footer_height = Inches(1.0)
     
-    stripe_box = slide.shapes.add_textbox(left, top, width, height)
-    stripe_box.fill.solid()
-    stripe_box.fill.fore_color.rgb = RGBColor.from_string(COLORS["gray"])
-    
-    # Make the textbox border invisible
-    stripe_box.line.fill.background()
+    footer_box = slide.shapes.add_textbox(footer_left, footer_top, footer_width, footer_height)
+    footer_box.fill.solid()
+    footer_box.fill.fore_color.rgb = RGBColor.from_string(COLORS["gray"])
+    footer_box.line.fill.background()

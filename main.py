@@ -1,5 +1,5 @@
 import streamlit as st
-from ui_new import render_ui
+from ui import render_ui
 import os
 import shutil
 
@@ -24,7 +24,7 @@ def main():
             st.error(f"Error updating content generator: {str(e)}")
     
     # Print message to show where we are in the startup process
-    print("Deck Genie is starting up - using fixed preview_generator.py")
+    print("Deck Genie is starting up - using consolidated ui.py")
     
     render_ui()
 
