@@ -52,7 +52,7 @@ def generate_presentation_content(
         if persona not in ["Generic", "Technical", "Marketing", "Executive", "Investor"]:
             persona = "Generic"
         
-        print(f"Generating content using {persona} persona with {slide_count} slides")
+        print(f"Generating content using {persona} persona with focused targeting")
         
         # Generate required slides with enhanced error handling
         try:
@@ -159,12 +159,16 @@ def generate_presentation_content(
         # Select slides based on slide_count and persona
         selected_slides = select_slides_for_presentation(all_slides, candidate_additional_slides, slide_count, persona)
         
-        # Add metadata
+        # Apply persona-specific enhancements to the selected content
+        selected_slides = enhance_content_for_persona(selected_slides, persona)
+        
+        # Add metadata with persona focus indicator
         selected_slides['metadata'] = {
             'company_name': company_name,
             'product_name': product_name,
             'persona': persona,
-            'slide_count': slide_count
+            'slide_count': len(selected_slides) - 1,  # Exclude metadata from count
+            'persona_focused': persona != "Generic"
         }
         
         return selected_slides
@@ -282,8 +286,9 @@ def create_fallback_team_slide(company_name: str) -> Dict[str, Any]:
     }
 
 def select_slides_for_presentation(all_slides: Dict, candidate_additional_slides: Dict, slide_count: int, persona: str = "Generic") -> Dict[str, Any]:
-    """Select appropriate slides based on user-specified slide count and persona."""
-    # Set a slide priority order based on persona
+    """Select appropriate slides based on user-specified slide count and persona with focused targeting."""
+    
+    # Enhanced persona-specific slide priorities with focused targeting
     slide_priorities = {
         "Generic": [
             'title_slide',     # Always first
@@ -298,95 +303,105 @@ def select_slides_for_presentation(all_slides: Dict, candidate_additional_slides
             'cta_slide'        # Always last
         ],
         "Technical": [
-            'title_slide',     # Always first
-            'problem_slide',   
-            'solution_slide',  
-            'features_slide',  
-            'audience_slide',  
-            'advantage_slide', 
-            'roadmap_slide',   
-            'team_slide',      
-            'market_slide',    
-            'cta_slide'        # Always last
+            'title_slide',     # Always first - Technical product introduction
+            'problem_slide',   # Technical pain points and challenges
+            'solution_slide',  # Technical architecture and approach
+            'features_slide',  # Detailed technical specifications
+            'audience_slide',  # Technical user profiles and use cases
+            'roadmap_slide',   # Technical development roadmap
+            'advantage_slide', # Technical superiority and innovations
+            'team_slide',      # Technical team expertise
+            'market_slide',    # Technical market landscape
+            'cta_slide'        # Always last - Technical next steps
         ],
         "Marketing": [
-            'title_slide',     # Always first
-            'solution_slide',  
-            'problem_slide',   
-            'advantage_slide', 
-            'audience_slide',  
-            'features_slide',  
-            'market_slide',    
-            'team_slide',      
-            'roadmap_slide',   
-            'cta_slide'        # Always last
+            'title_slide',     # Always first - Brand-focused introduction
+            'audience_slide',  # Target customer segments and personas
+            'problem_slide',   # Customer pain points and market gaps
+            'solution_slide',  # Value proposition and customer benefits
+            'advantage_slide', # Competitive differentiation and USPs
+            'features_slide',  # Customer-facing features and benefits
+            'market_slide',    # Market opportunity and customer demand
+            'roadmap_slide',   # Go-to-market strategy and milestones
+            'team_slide',      # Marketing and customer success team
+            'cta_slide'        # Always last - Customer acquisition focused
         ],
         "Executive": [
-            'title_slide',     # Always first
-            'market_slide',    
-            'problem_slide',   
-            'solution_slide',  
-            'advantage_slide', 
-            'features_slide',  
-            'roadmap_slide',   
-            'audience_slide',  
-            'team_slide',      
-            'cta_slide'        # Always last
+            'title_slide',     # Always first - Strategic overview
+            'market_slide',    # Business opportunity and market size
+            'problem_slide',   # Business challenges and market needs
+            'solution_slide',  # Strategic solution and business impact
+            'advantage_slide', # Competitive positioning and moats
+            'roadmap_slide',   # Strategic milestones and business goals
+            'team_slide',      # Leadership and execution capability
+            'features_slide',  # Key capabilities that drive business value
+            'audience_slide',  # Target market and customer strategy
+            'cta_slide'        # Always last - Strategic next steps
         ],
         "Investor": [
-            'title_slide',     # Always first
-            'market_slide',    
-            'problem_slide',   
-            'solution_slide',  
-            'team_slide',      
-            'advantage_slide', 
-            'roadmap_slide',   
-            'features_slide',  
-            'audience_slide',  
-            'cta_slide'        # Always last
+            'title_slide',     # Always first - Investment opportunity
+            'market_slide',    # Total addressable market and opportunity
+            'problem_slide',   # Market inefficiencies and unmet needs
+            'solution_slide',  # Unique solution and scalability
+            'team_slide',      # Management team and execution track record
+            'advantage_slide', # Competitive moats and barriers to entry
+            'roadmap_slide',   # Growth strategy and scaling milestones
+            'audience_slide',  # Customer acquisition and retention
+            'features_slide',  # Product differentiation and IP
+            'cta_slide'        # Always last - Investment ask and terms
         ]
     }
     
     # Use Generic priority if persona not found
     selected_priorities = slide_priorities.get(persona, slide_priorities["Generic"])
     
-    # Ensure slide_count is within bounds (min 5, max 10)
-    slide_count = max(5, min(slide_count, 10))
-    
-    # Start with empty selection
-    selected = {}
-    
-    # Always include title_slide and cta_slide
-    if 'title_slide' in all_slides:
-        selected['title_slide'] = all_slides['title_slide']
-    if 'cta_slide' in all_slides:
-        selected['cta_slide'] = all_slides['cta_slide']
-    
-    # Fill in the rest based on priority until we hit the slide count
-    remaining_slots = slide_count - len(selected)
-    
-    # First add slides from the all_slides dictionary based on persona priority
-    for slide_key in selected_priorities:
-        if slide_key in ['title_slide', 'cta_slide']:
-            continue  # Already added
-            
-        if remaining_slots <= 0:
-            break
-            
-        if slide_key in all_slides:
-            selected[slide_key] = all_slides[slide_key]
-            remaining_slots -= 1
-    
-    # If we still need more slides, use the candidate_additional_slides based on persona priority
-    if remaining_slots > 0:
+    # For focused personas, ensure we generate ALL relevant slides regardless of slide_count
+    # This allows users to see the complete persona-focused presentation
+    if persona in ["Technical", "Marketing", "Executive", "Investor"]:
+        # Generate all slides that are relevant to this persona
+        selected = {}
+        
+        # Add all slides in persona-specific priority order
         for slide_key in selected_priorities:
+            if slide_key in all_slides:
+                selected[slide_key] = all_slides[slide_key]
+            elif slide_key in candidate_additional_slides:
+                selected[slide_key] = candidate_additional_slides[slide_key]
+    else:
+        # For Generic persona, use the original slide_count logic
+        slide_count = max(5, min(slide_count, 10))
+        selected = {}
+        
+        # Always include title_slide and cta_slide
+        if 'title_slide' in all_slides:
+            selected['title_slide'] = all_slides['title_slide']
+        if 'cta_slide' in all_slides:
+            selected['cta_slide'] = all_slides['cta_slide']
+        
+        # Fill in the rest based on priority until we hit the slide count
+        remaining_slots = slide_count - len(selected)
+        
+        # First add slides from the all_slides dictionary based on persona priority
+        for slide_key in selected_priorities:
+            if slide_key in ['title_slide', 'cta_slide']:
+                continue  # Already added
+                
             if remaining_slots <= 0:
                 break
                 
-            if slide_key not in selected and slide_key in candidate_additional_slides:
-                # Add the additional slide
-                selected[slide_key] = candidate_additional_slides[slide_key]
+            if slide_key in all_slides:
+                selected[slide_key] = all_slides[slide_key]
                 remaining_slots -= 1
+        
+        # If we still need more slides, use the candidate_additional_slides
+        if remaining_slots > 0:
+            for slide_key in selected_priorities:
+                if remaining_slots <= 0:
+                    break
+                    
+                if slide_key not in selected and slide_key in candidate_additional_slides:
+                    selected[slide_key] = candidate_additional_slides[slide_key]
+                    remaining_slots -= 1
     
     return selected
 
@@ -400,12 +415,145 @@ def get_domain_context(domain: str) -> str:
     return contexts.get(domain, contexts['generic'])
 
 def get_persona_context(persona: str) -> str:
-    """Get persona-specific context for prompts."""
+    """Get enhanced persona-specific context for prompts with focused targeting."""
     contexts = {
-        'Technical': 'technical audience who appreciates detailed specifications, architecture insights, and implementation details',
-        'Marketing': 'business audience focused on outcomes, benefits, market impact, and customer success stories',
-        'Generic': 'mixed audience requiring both technical credibility and business value focus',
-        'Executive': 'executive audience focused on business impact, ROI, strategic alignment, and high-level benefits',
-        'Investor': 'investor audience interested in market opportunity, growth potential, competitive differentiation, and financial metrics'
+        'Technical': '''technical audience including developers, engineers, architects, and IT professionals who need:
+        - Detailed technical specifications and architecture insights
+        - Implementation details, APIs, and integration capabilities
+        - Performance metrics, scalability, and security considerations
+        - Technical roadmap with development milestones
+        - Code examples, technical documentation, and developer resources''',
+        
+        'Marketing': '''marketing professionals, brand managers, and customer-facing teams who need:
+        - Customer-centric value propositions and benefit statements
+        - Market positioning, competitive differentiation, and USPs
+        - Customer personas, segments, and target audience insights
+        - Go-to-market strategy, campaign messaging, and brand story
+        - Customer success stories, testimonials, and market validation''',
+        
+        'Executive': '''C-suite executives, senior management, and strategic decision-makers who need:
+        - High-level business impact, ROI, and strategic value
+        - Market opportunity, competitive landscape, and business model
+        - Strategic roadmap, business objectives, and key milestones
+        - Risk assessment, resource requirements, and investment rationale
+        - Leadership team capabilities and execution track record''',
+        
+        'Investor': '''investors, VCs, angels, and financial stakeholders who need:
+        - Investment opportunity, market size, and growth potential
+        - Business model, revenue streams, and path to profitability
+        - Competitive advantages, barriers to entry, and market positioning
+        - Financial projections, funding requirements, and use of capital
+        - Management team experience and execution capabilities''',
+        
+        'Generic': '''mixed audience requiring balanced technical and business content with:
+        - Clear value proposition that appeals to multiple stakeholders
+        - Technical credibility balanced with business benefits
+        - Comprehensive overview suitable for diverse decision-makers
+        - Balanced detail level appropriate for general business audiences
+        - Broad appeal covering technical, business, and strategic aspects'''
     }
     return contexts.get(persona, contexts['Generic'])
+
+def enhance_content_for_persona(content: Dict[str, Any], persona: str) -> Dict[str, Any]:
+    """
+    Enhance and tailor content specifically for the target persona.
+    This ensures each slide type is optimized for the persona's specific needs.
+    """
+    enhanced_content = content.copy()
+    
+    if persona == "Marketing":
+        # Marketing-focused enhancements
+        if 'audience_slide' in enhanced_content:
+            # Add marketing-specific audience insights
+            audience_content = enhanced_content['audience_slide']
+            if 'paragraph' in audience_content:
+                marketing_angle = " Our target customers are actively seeking solutions that deliver measurable ROI and competitive advantage in their market."
+                audience_content['paragraph'] = audience_content['paragraph'] + marketing_angle
+        
+        if 'advantage_slide' in enhanced_content:
+            # Emphasize competitive differentiation for marketing
+            advantage_content = enhanced_content['advantage_slide']
+            if 'title' not in advantage_content or 'competitive' not in advantage_content['title'].lower():
+                advantage_content['title'] = "Competitive Differentiation & Unique Value"
+        
+        if 'cta_slide' in enhanced_content:
+            # Marketing-focused CTA
+            cta_content = enhanced_content['cta_slide']
+            cta_content['title'] = "Ready to Accelerate Your Growth?"
+            if 'bullets' not in cta_content:
+                cta_content['bullets'] = []
+            cta_content['bullets'] = [
+                "Schedule a demo to see customer impact",
+                "Get a customized ROI analysis for your market"
+            ]
+    
+    elif persona == "Technical":
+        # Technical-focused enhancements
+        if 'features_slide' in enhanced_content:
+            # Add technical depth to features
+            features_content = enhanced_content['features_slide']
+            features_content['title'] = "Technical Capabilities & Architecture"
+        
+        if 'solution_slide' in enhanced_content:
+            # Technical solution focus
+            solution_content = enhanced_content['solution_slide']
+            solution_content['title'] = "Technical Architecture & Implementation"
+        
+        if 'cta_slide' in enhanced_content:
+            # Technical-focused CTA
+            cta_content = enhanced_content['cta_slide']
+            cta_content['title'] = "Ready for Technical Deep Dive?"
+            if 'bullets' not in cta_content:
+                cta_content['bullets'] = []
+            cta_content['bullets'] = [
+                "Access technical documentation and APIs",
+                "Schedule architecture review session"
+            ]
+    
+    elif persona == "Executive":
+        # Executive-focused enhancements
+        if 'market_slide' in enhanced_content:
+            # Executive market focus
+            market_content = enhanced_content['market_slide']
+            market_content['title'] = "Strategic Market Opportunity"
+        
+        if 'roadmap_slide' in enhanced_content:
+            # Strategic roadmap focus
+            roadmap_content = enhanced_content['roadmap_slide']
+            roadmap_content['title'] = "Strategic Roadmap & Business Milestones"
+        
+        if 'cta_slide' in enhanced_content:
+            # Executive-focused CTA
+            cta_content = enhanced_content['cta_slide']
+            cta_content['title'] = "Strategic Partnership Opportunity"
+            if 'bullets' not in cta_content:
+                cta_content['bullets'] = []
+            cta_content['bullets'] = [
+                "Executive briefing and strategic alignment",
+                "ROI analysis and implementation roadmap"
+            ]
+    
+    elif persona == "Investor":
+        # Investor-focused enhancements
+        if 'market_slide' in enhanced_content:
+            # Investment opportunity focus
+            market_content = enhanced_content['market_slide']
+            market_content['title'] = "Investment Opportunity & Market Size"
+        
+        if 'team_slide' in enhanced_content:
+            # Leadership and execution focus
+            team_content = enhanced_content['team_slide']
+            team_content['title'] = "Leadership Team & Execution Track Record"
+        
+        if 'cta_slide' in enhanced_content:
+            # Investment-focused CTA
+            cta_content = enhanced_content['cta_slide']
+            cta_content['title'] = "Investment Opportunity"
+            if 'bullets' not in cta_content:
+                cta_content['bullets'] = []
+            cta_content['bullets'] = [
+                "Review detailed financial projections",
+                "Discuss investment terms and partnership"
+            ]
+    
+    return enhanced_content

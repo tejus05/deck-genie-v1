@@ -32,36 +32,47 @@ def generate_title_slide_content(product_name: str, company_name: str) -> Dict[s
     return content
 
 def generate_problem_slide_content(problem_statement: str, persona: str) -> Dict[str, Any]:
-    """Generate problem slide content."""
+    """Generate problem slide content with persona-specific focus."""
     model = genai.GenerativeModel('gemini-pro')
     
-    persona_specific = ""
-    if persona == "Technical":
-        persona_specific = "Focus on technical pain points and challenges that engineers and technical teams face."
-    elif persona == "Marketing":
-        persona_specific = "Focus on market challenges and customer pain points that affect business outcomes."
-    elif persona == "Executive":
-        persona_specific = "Focus on business impact, costs, risks, and organizational challenges."
-    elif persona == "Investor":
-        persona_specific = "Focus on market gaps, inefficiencies, and opportunities for disruption and growth."
+    # Enhanced persona-specific prompts
+    persona_prompts = {
+        "Technical": """Focus on technical pain points, system limitations, performance issues, and engineering challenges. 
+        Emphasize scalability problems, integration difficulties, maintenance overhead, and technical debt.""",
+        
+        "Marketing": """Focus on customer pain points, market gaps, user experience issues, and customer acquisition challenges. 
+        Emphasize customer dissatisfaction, market demand, competitive weaknesses, and opportunities for differentiation.""",
+        
+        "Executive": """Focus on business impact, strategic challenges, operational inefficiencies, and competitive threats. 
+        Emphasize revenue impact, market positioning, resource allocation, and strategic risks.""",
+        
+        "Investor": """Focus on market inefficiencies, unmet demand, scalable problems, and monetizable pain points. 
+        Emphasize market size of problems, competitive gaps, and opportunities for disruption and returns.""",
+        
+        "Generic": """Focus on balanced mix of technical and business challenges that affect multiple stakeholders."""
+    }
+    
+    persona_specific = persona_prompts.get(persona, persona_prompts["Generic"])
     
     prompt = f"""
-    Create a problem statement slide based on this description:
+    Create a problem statement slide for {persona} audience based on this description:
     "{problem_statement}"
     
     {persona_specific}
     
-    Return a JSON object with these fields:
-    - title: A compelling slide title about the problem
-    - pain_points: An array of 3-4 specific pain points or challenges extracted/derived from the problem statement
+    Make the content highly relevant and actionable for {persona} professionals.
     
-    Format as valid JSON only. Each bullet point should be concise but impactful.
+    Return a JSON object with these fields:
+    - title: A compelling slide title about the problem (tailored for {persona} audience)
+    - pain_points: An array of 3-4 specific pain points extracted/derived from the problem statement
+    
+    Format as valid JSON only. Each bullet point should be specific to {persona} concerns.
     """
     
     response = model.generate_content(prompt)
     content = extract_json_from_response(response.text)
     
-    # Ensure correct fields exist with good defaults
+    # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = "The Problem"
     if not content.get("pain_points") or not isinstance(content.get("pain_points"), list):
@@ -71,30 +82,41 @@ def generate_problem_slide_content(problem_statement: str, persona: str) -> Dict
     return content
 
 def generate_solution_slide_content(product_name: str, problem_statement: str, persona: str) -> Dict[str, Any]:
-    """Generate solution slide content."""
+    """Generate solution slide content with persona-specific value proposition."""
     model = genai.GenerativeModel('gemini-pro')
     
-    persona_specific = ""
-    if persona == "Technical":
-        persona_specific = "Focus on how the solution works technically and its architecture."
-    elif persona == "Marketing":
-        persona_specific = "Focus on benefits, unique value, and how it solves customer problems."
-    elif persona == "Executive":
-        persona_specific = "Focus on business impact, ROI, and strategic advantages."
-    elif persona == "Investor":
-        persona_specific = "Focus on market opportunity, scalability, and competitive differentiation."
+    # Enhanced persona-specific solution focus
+    persona_prompts = {
+        "Technical": """Focus on technical architecture, implementation approach, engineering solutions, and technical benefits. 
+        Emphasize scalability, performance, integration capabilities, and technical innovation.""",
+        
+        "Marketing": """Focus on customer value proposition, user benefits, market differentiation, and customer success. 
+        Emphasize customer outcomes, user experience improvements, and competitive advantages.""",
+        
+        "Executive": """Focus on business impact, strategic value, operational improvements, and competitive positioning. 
+        Emphasize ROI, efficiency gains, market opportunities, and strategic advantages.""",
+        
+        "Investor": """Focus on market opportunity, scalable solution, revenue potential, and competitive moats. 
+        Emphasize addressable market, growth potential, monetization strategy, and sustainable advantages.""",
+        
+        "Generic": """Focus on balanced technical and business value that appeals to multiple stakeholders."""
+    }
+    
+    persona_specific = persona_prompts.get(persona, persona_prompts["Generic"])
     
     prompt = f"""
-    Create a solution overview slide for a product called "{product_name}" that addresses this problem:
+    Create a solution overview slide for {persona} audience for "{product_name}" that addresses:
     "{problem_statement}"
     
     {persona_specific}
     
-    Return a JSON object with these fields:
-    - title: A compelling slide title introducing the solution (should include the product name)
-    - paragraph: A concise paragraph (60-80 words) that explains how {product_name} solves the problem
+    Make the solution compelling and specific to {persona} decision-making criteria.
     
-    The paragraph should clearly articulate the value proposition without technical jargon.
+    Return a JSON object with these fields:
+    - title: A compelling slide title introducing the solution (include product name, tailored for {persona})
+    - paragraph: A focused paragraph (60-80 words) explaining how {product_name} solves the problem for {persona} audience
+    
+    The paragraph should clearly articulate value specific to {persona} professionals.
     Format as valid JSON only.
     """
     
