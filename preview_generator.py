@@ -11,8 +11,6 @@ class SlidePreviewGenerator:
         
     def create_preview_container(self):
         """Create the container for live slide previews that persists throughout the session."""
-        st.markdown("### 🔍 Live Preview")
-        
         # Create persistent container that can be cleared and rewritten
         self.preview_container = st.empty()
         
@@ -26,7 +24,7 @@ class SlidePreviewGenerator:
         self.render_all_preview_slides()
     
     def add_slide_preview(self, slide_data: Dict[str, Any], slide_type: str):
-        """Add a slide to the preview."""
+        """Add a slide to the preview with sequential animation."""
         # Create a preview slide object
         icon = self._get_slide_icon(slide_type)
         title = self._get_slide_title(slide_type)
@@ -41,10 +39,10 @@ class SlidePreviewGenerator:
         # Append to session state list
         st.session_state.preview_slides.append(slide)
         
-        # Render all slides
-        self.render_all_preview_slides()
+        # Render all slides - this will show the new slide with animation
+        self.render_all_preview_slides(animate_last=True)
     
-    def render_all_preview_slides(self):
+    def render_all_preview_slides(self, animate_last=False):
         """Render all preview slides with equal dimensions."""
         if not self.preview_container:
             self.preview_container = st.empty()
@@ -57,7 +55,6 @@ class SlidePreviewGenerator:
             
             num_slides = len(slides)
             # Determine optimal number of columns based on slide count
-            # For fewer slides, use fewer columns for better visibility
             if num_slides <= 4:
                 cols_per_row = 3  # Use 3 columns for 1-4 slides
             elif num_slides <= 8:
@@ -75,15 +72,31 @@ class SlidePreviewGenerator:
                     if slide_idx < num_slides:
                         slide = slides[slide_idx]
                         with cols[col_idx]:
-                            self.render_single_slide_preview(slide)
+                            # Apply animation class to the last slide if requested
+                            animation = "slide-in" if animate_last and slide_idx == num_slides - 1 else ""
+                            self.render_single_slide_preview(slide, animation)
     
-    def render_single_slide_preview(self, slide: Dict[str, Any]):
-        """Render a single slide preview card with consistent dimensions."""
+    def render_single_slide_preview(self, slide: Dict[str, Any], animation=""):
+        """Render a single slide preview card with animation if specified."""
         # Get content preview based on slide data
         content_preview = self.get_slide_content_preview(slide['data'])
         
+        # Add animation class if requested
+        animation_style = """
+        @keyframes slideIn {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .slide-in {
+            animation: slideIn 0.7s ease-out;
+        }
+        """ if animation else ""
+        
         st.markdown(f"""
-        <div style="
+        <style>
+            {animation_style}
+        </style>
+        <div class="{animation}" style="
             border: 2px solid #0078D7; 
             border-radius: 12px; 
             padding: 10px; 
@@ -185,92 +198,96 @@ def simulate_slide_generation_with_preview(
     Returns:
         Generated content
     """
-    # Simulate step 1: Planning (already done before this function)
-    progress_bar.progress(20)
-    
-    # Simulate step 2: Content generation
-    progress_status.markdown("### 🧠 Crafting the title slide...")
-    progress_detail.markdown("_Creating an impactful introduction_")
-    time.sleep(1)  # Simulate processing time
-    progress_bar.progress(30)
-    
-    # Simulate step 3: Problem slide
-    progress_status.markdown("### 🧠 Articulating the problem...")
-    progress_detail.markdown("_Defining the challenge your product solves_")
-    time.sleep(1)  # Simulate processing time
-    progress_bar.progress(40)
-    
-    # Simulate step 4: Solution slide
-    progress_status.markdown("### 🧠 Designing the solution narrative...")
-    progress_detail.markdown("_Explaining how your product addresses the challenge_")
-    time.sleep(1)  # Simulate processing time
-    progress_bar.progress(50)
-    
-    # Simulate step 5: Features slide
-    progress_status.markdown("### 🧠 Highlighting key features...")
-    progress_detail.markdown("_Emphasizing what makes your product valuable_")
-    time.sleep(1)  # Simulate processing time
-    progress_bar.progress(60)
-    
-    # Generate content for real
+    # Generate the content first
     content = content_generator_func(*args)
     
-    # Get the slide count from args (it's the 8th argument)
-    # Make sure to handle both string and integer types safely
+    # Get the slide count and ensure it's an integer
     try:
         slide_count = int(args[8]) if len(args) > 8 else 7
     except (ValueError, TypeError):
         slide_count = 7
     
-    # Store the slide count in the content metadata for future reference
+    # Store metadata
     if 'metadata' not in content:
         content['metadata'] = {}
     content['metadata']['slide_count'] = slide_count
     
-    # Define standard slides and additional slides
+    # Define slide types in order of appearance
     standard_slides = ['title_slide', 'problem_slide', 'solution_slide', 'features_slide', 
                       'advantage_slide', 'audience_slide', 'cta_slide']
     additional_slides = ['market_slide', 'roadmap_slide', 'team_slide']
     
-    # Clear preview container first
+    # Reset preview at the beginning
     st.session_state.preview_slides = []
     
-    # Track which slides we include to respect the slide count
-    included_slides = []
+    # Set initial progress
+    progress_bar.progress(15)
     
-    # Process standard slides first
+    # Calculate total slides to show based on content and slide count
+    available_slides = [s for s in standard_slides + additional_slides if s in content]
+    total_slides_to_show = min(slide_count, len(available_slides))
+    
+    # Prepare slide sequences for sequential display
+    slide_sequence = []
+    
+    # Add standard slides first
     for slide_type in standard_slides:
-        if slide_type in content and len(included_slides) < slide_count:
-            progress_status.markdown(f"### 🎨 Building {slide_type.replace('_', ' ').title()}...")
-            progress_detail.markdown(f"_Creating visual elements for this slide_")
-            
-            # Add a small delay to make the sequential updates visible
-            time.sleep(0.3)
-            
-            # Add slide to preview and track it
-            preview_generator.add_slide_preview(content[slide_type], slide_type)
-            included_slides.append(slide_type)
+        if slide_type in content and len(slide_sequence) < slide_count:
+            slide_sequence.append(slide_type)
     
-    # Then process additional slides if we need more to reach slide_count
+    # Add additional slides if needed
     for slide_type in additional_slides:
-        if len(included_slides) >= slide_count:
-            break
-            
-        if slide_type in content:
-            progress_status.markdown(f"### 🎨 Building {slide_type.replace('_', ' ').title()}...")
-            progress_detail.markdown(f"_Creating visual elements for this slide_")
-            
-            # Add a small delay to make the updates visible
-            time.sleep(0.3)
-            
-            # Add slide to preview and track it
-            preview_generator.add_slide_preview(content[slide_type], slide_type)
-            included_slides.append(slide_type)
+        if slide_type in content and len(slide_sequence) < slide_count:
+            slide_sequence.append(slide_type)
     
-    # Store the actually included slides in content metadata
-    content['metadata']['included_slides'] = included_slides
+    # Sequential slide generation with pauses
+    for i, slide_type in enumerate(slide_sequence):
+        # Calculate progress percentage
+        progress_value = 15 + int((i+1) / len(slide_sequence) * 55)
+        progress_bar.progress(progress_value)
+        
+        # Customize message based on slide type
+        if slide_type == 'title_slide':
+            progress_status.markdown("### 🧠 Crafting the title slide...")
+            progress_detail.markdown("_Creating an impactful introduction_")
+        elif slide_type == 'problem_slide':
+            progress_status.markdown("### 🧠 Articulating the problem...")
+            progress_detail.markdown("_Defining the challenge your product solves_")
+        elif slide_type == 'solution_slide':
+            progress_status.markdown("### 🧠 Designing the solution narrative...")
+            progress_detail.markdown("_Explaining how your product addresses the challenge_")
+        elif slide_type == 'features_slide':
+            progress_status.markdown("### 🧠 Highlighting key features...")
+            progress_detail.markdown("_Emphasizing what makes your product valuable_")
+        elif slide_type == 'advantage_slide':
+            progress_status.markdown("### 🧠 Showcasing competitive advantages...")
+            progress_detail.markdown("_Explaining why your product stands out_")
+        elif slide_type == 'audience_slide':
+            progress_status.markdown("### 🧠 Defining target audience...")
+            progress_detail.markdown("_Identifying ideal customers for your solution_")
+        elif slide_type == 'cta_slide':
+            progress_status.markdown("### 🧠 Creating call to action...")
+            progress_detail.markdown("_Crafting a compelling next step_")
+        elif slide_type == 'market_slide':
+            progress_status.markdown("### 🧠 Analyzing the market...")
+            progress_detail.markdown("_Examining market size and opportunities_")
+        elif slide_type == 'roadmap_slide':
+            progress_status.markdown("### 🧠 Planning the roadmap...")
+            progress_detail.markdown("_Outlining future development milestones_")
+        elif slide_type == 'team_slide':
+            progress_status.markdown("### 🧠 Introducing the team...")
+            progress_detail.markdown("_Highlighting key team members and expertise_")
+        
+        # Add slight delay for visual effect - longer for first slide, shorter for others
+        time.sleep(1.2 if i == 0 else 0.8)
+        
+        # Add the slide to the preview with animation
+        preview_generator.add_slide_preview(content[slide_type], slide_type)
     
-    # Update the progress bar to completion
+    # Store the included slides in metadata
+    content['metadata']['included_slides'] = slide_sequence
+    
+    # Finalize progress
     progress_bar.progress(70)
     
     return content

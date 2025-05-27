@@ -175,12 +175,20 @@ def render_ui():
                         progress_status.markdown("### 🚀 Starting the creation process...")
                         progress_detail.markdown("_Analyzing your inputs..._")
                         progress_bar.progress(10)
-                        st.balloons()
-                        preview_generator.create_preview_container()
+                        
+                        # Create the preview container before showing balloons to ensure it appears first
+                        preview_container = st.container()
+                        with preview_container:
+                            st.markdown("### 🔍 Live Preview")
+                            preview_generator.create_preview_container()
                         st.session_state.preview_shown_during_generation = True
+                        
+                        # Show balloons after creating container
+                        st.balloons()
                         
                         features_list = [f for f in key_features.strip().split('\n') if f]
                         
+                        # Generate the content with sequential slide previews
                         content = simulate_slide_generation_with_preview(
                             generate_presentation_content,
                             (company_name, product_name, target_audience, problem_statement, 
