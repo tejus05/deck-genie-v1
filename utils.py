@@ -18,7 +18,11 @@ FONTS = {
 COLORS = {
     "black": "000000",
     "white": "FFFFFF",
-    "gray": "666666",
+    "blue": "0078D7",
+    "light_blue": "B3D7F2",  # Added light blue color
+    "red": "E74C3C", 
+    "green": "2ECC71",
+    "gray": "D3D3D3",
     "light_gray": "F5F5F5",  # Added light gray for subtle backgrounds
     "accent": "4CAF50",  # Added accent color (green)
     "accent_dark": "388E3C"  # Added darker accent color (dark green)

@@ -69,6 +69,7 @@ def generate_reordered_presentation(
 ) -> bytes:
     """
     Generate a reordered presentation based on the original content and a custom slide order.
+    Uses caching to avoid regenerating the same presentation multiple times.
     
     Args:
         original_content: Dictionary containing the original presentation content
@@ -80,6 +81,23 @@ def generate_reordered_presentation(
         bytes: Binary data for the PowerPoint file
     """
     try:
+        # Create a cache key from content hash and slide order
+        import hashlib
+        import json
+        
+        # Create a key based on content and slide order
+        content_hash = hashlib.md5(json.dumps(original_content, sort_keys=True).encode()).hexdigest()
+        order_hash = hashlib.md5(json.dumps(custom_slide_order).encode()).hexdigest()
+        cache_key = f"reordered_presentation_{content_hash}_{order_hash}"
+        
+        # Check if this exact configuration is cached
+        if 'reordered_presentation_cache' not in st.session_state:
+            st.session_state.reordered_presentation_cache = {}
+            
+        # Return cached presentation if available
+        if cache_key in st.session_state.reordered_presentation_cache:
+            return st.session_state.reordered_presentation_cache[cache_key]
+        
         # Create a copy of the content to avoid modifying the original
         content_copy = {k: v for k, v in original_content.items()}
         
@@ -91,16 +109,33 @@ def generate_reordered_presentation(
             custom_slide_order=custom_slide_order
         )
         
+        # Cache the result
+        st.session_state.reordered_presentation_cache[cache_key] = presentation_buffer
+        
         return presentation_buffer
     except Exception as e:
         st.error(f"Error generating reordered presentation: {str(e)}")
         # Return None or a fallback presentation
         return None
 
+def move_slide_up(i: int):
+    """Move a slide up in the order."""
+    if i > 0:  # Safety check
+        st.session_state.slide_order[i], st.session_state.slide_order[i-1] = \
+            st.session_state.slide_order[i-1], st.session_state.slide_order[i]
+        st.session_state.has_modifications = True
+
+def move_slide_down(i: int):
+    """Move a slide down in the order."""
+    if i < len(st.session_state.slide_order) - 1:  # Safety check
+        st.session_state.slide_order[i], st.session_state.slide_order[i+1] = \
+            st.session_state.slide_order[i+1], st.session_state.slide_order[i]
+        st.session_state.has_modifications = True
+
 def render_slide_reordering_ui(content: Dict[str, Any]) -> None:
     """
     Render UI elements for reordering slides, ensuring the initial order
-    matches the original presentation.
+    matches the original presentation. Uses session state callbacks for better performance.
     
     Args:
         content: Dictionary containing presentation content
@@ -123,26 +158,12 @@ def render_slide_reordering_ui(content: Dict[str, Any]) -> None:
         
         # Move Up button
         with col2:
-            if i > 0:  # Can't move up if it's already the first slide
-                if st.button("↑", key=f"up_{slide_type}_{i}"):
-                    # Swap this slide with the one above it
-                    st.session_state.slide_order[i], st.session_state.slide_order[i-1] = \
-                        st.session_state.slide_order[i-1], st.session_state.slide_order[i]
-                    st.session_state.has_modifications = True
-                    # Need to rerun to show updated order
-                    st.rerun()
-            else:
-                st.write("")  # Empty space for alignment
-        
+            disabled = i <= 0  # Disable if it's the first slide
+            if st.button("↑", key=f"up_{slide_type}_{i}", disabled=disabled, on_click=move_slide_up, args=(i,)):
+                pass  # The actual action happens in the callback
+            
         # Move Down button
         with col3:
-            if i < len(st.session_state.slide_order) - 1:  # Can't move down if it's already the last slide
-                if st.button("↓", key=f"down_{slide_type}_{i}"):
-                    # Swap this slide with the one below it
-                    st.session_state.slide_order[i], st.session_state.slide_order[i+1] = \
-                        st.session_state.slide_order[i+1], st.session_state.slide_order[i]
-                    st.session_state.has_modifications = True
-                    # Need to rerun to show updated order
-                    st.rerun()
-            else:
-                st.write("")  # Empty space for alignment
+            disabled = i >= len(st.session_state.slide_order) - 1  # Disable if it's the last slide
+            if st.button("↓", key=f"down_{slide_type}_{i}", disabled=disabled, on_click=move_slide_down, args=(i,)):
+                pass  # The actual action happens in the callback

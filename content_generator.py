@@ -1,5 +1,6 @@
 import os
 import json
+import streamlit as st
 import google.generativeai as genai
 from typing import Dict, List, Any
 from utils import get_api_key, truncate_text
@@ -24,6 +25,7 @@ def generate_presentation_content(
 ) -> Dict[str, Any]:
     """
     Generate content for all slides using Gemini API with persona customization.
+    Uses parallel processing for improved performance.
     
     Args:
         company_name: The company name
@@ -39,6 +41,33 @@ def generate_presentation_content(
     Returns:
         Dictionary containing structured content for all slides
     """
+    # Check if there's a cached presentation for these exact inputs
+    import hashlib
+    import json
+    
+    # Create a cache key from all inputs
+    input_data = {
+        "company_name": company_name,
+        "product_name": product_name,
+        "target_audience": target_audience,
+        "problem_statement": problem_statement,
+        "key_features": key_features,
+        "competitive_advantage": competitive_advantage,
+        "call_to_action": call_to_action,
+        "persona": persona,
+        "slide_count": slide_count
+    }
+    
+    cache_key = hashlib.md5(json.dumps(input_data, sort_keys=True).encode()).hexdigest()
+    
+    # Initialize presentation cache if needed
+    if 'full_presentation_cache' not in st.session_state:
+        st.session_state.full_presentation_cache = {}
+    
+    # Return cached presentation if available
+    if cache_key in st.session_state.full_presentation_cache:
+        return st.session_state.full_presentation_cache[cache_key]
+    
     try:
         # Configure the Gemini API
         genai.configure(api_key=get_api_key("GEMINI_API_KEY"))
@@ -53,62 +82,73 @@ def generate_presentation_content(
             persona = "Generic"
         
         print(f"Generating content using {persona} persona with focused targeting")
+          # Generate core slides using parallel processing for better performance
+        from parallel_processor import generate_slides_in_parallel
         
-        # Generate required slides with enhanced error handling
-        try:
-            title_content = generate_title_slide_content(product_name, company_name)
-            if not validate_slide_content(title_content, "title_slide"):
-                title_content = create_fallback_title_slide(product_name, company_name)
-        except Exception as e:
-            print(f"Error generating title slide: {str(e)}")
+        # Define content generators for each slide type
+        content_generators = {
+            'title_slide': generate_title_slide_content,
+            'problem_slide': generate_problem_slide_content,
+            'solution_slide': generate_solution_slide_content,
+            'features_slide': generate_features_slide_content,
+            'advantage_slide': generate_advantage_slide_content,
+            'audience_slide': generate_audience_slide_content,
+            'cta_slide': generate_cta_slide_content
+        }
+        
+        # Define arguments for each generator function
+        slide_args = {
+            'title_slide': (product_name, company_name),
+            'problem_slide': (problem_statement, persona),
+            'solution_slide': (product_name, problem_statement, persona),
+            'features_slide': (key_features, persona),
+            'advantage_slide': (competitive_advantage, persona),
+            'audience_slide': (target_audience, persona),
+            'cta_slide': (call_to_action, product_name, persona)
+        }
+        
+        # Define slide types to generate
+        core_slide_types = [
+            'title_slide', 'problem_slide', 'solution_slide', 
+            'features_slide', 'advantage_slide', 'audience_slide', 'cta_slide'
+        ]
+        
+        # Generate slides in parallel
+        print("Generating core slides in parallel...")
+        parallel_results = generate_slides_in_parallel(
+            content_generators,
+            core_slide_types,
+            slide_args,
+            max_workers=3  # Limit to 3 workers to avoid API rate limits
+        )
+        
+        # Handle any slides that failed or need validation
+        title_content = parallel_results.get('title_slide', create_fallback_title_slide(product_name, company_name))
+        if not validate_slide_content(title_content, "title_slide"):
             title_content = create_fallback_title_slide(product_name, company_name)
             
-        try:
-            problem_content = generate_problem_slide_content(problem_statement, persona)
-            if not validate_slide_content(problem_content, "problem_slide"):
-                problem_content = create_fallback_problem_slide(problem_statement)
-        except Exception as e:
-            print(f"Error generating problem slide: {str(e)}")
+        problem_content = parallel_results.get('problem_slide', create_fallback_problem_slide(problem_statement))
+        if not validate_slide_content(problem_content, "problem_slide"):
             problem_content = create_fallback_problem_slide(problem_statement)
-        
-        try:
-            solution_content = generate_solution_slide_content(product_name, problem_statement, persona)
-            if not validate_slide_content(solution_content, "solution_slide"):
-                solution_content = create_fallback_solution_slide(product_name, problem_statement)
-        except Exception as e:
-            print(f"Error generating solution slide: {str(e)}")
+            
+        solution_content = parallel_results.get('solution_slide', create_fallback_solution_slide(product_name, problem_statement))
+        if not validate_slide_content(solution_content, "solution_slide"):
             solution_content = create_fallback_solution_slide(product_name, problem_statement)
-        
-        try:
-            features_content = generate_features_slide_content(key_features, persona)
-            if not validate_slide_content(features_content, "features_slide"):
-                features_content = create_fallback_features_slide(key_features)
-        except Exception as e:
-            print(f"Error generating features slide: {str(e)}")
+            
+        features_content = parallel_results.get('features_slide', create_fallback_features_slide(key_features))
+        if not validate_slide_content(features_content, "features_slide"):
             features_content = create_fallback_features_slide(key_features)
-        
-        try:
-            advantage_content = generate_advantage_slide_content(competitive_advantage, persona)
-            if not validate_slide_content(advantage_content, "advantage_slide"):
-                advantage_content = create_fallback_advantage_slide(competitive_advantage)
-        except Exception as e:
-            print(f"Error generating advantage slide: {str(e)}")
+            
+        advantage_content = parallel_results.get('advantage_slide', create_fallback_advantage_slide(competitive_advantage))
+        if not validate_slide_content(advantage_content, "advantage_slide"):
             advantage_content = create_fallback_advantage_slide(competitive_advantage)
-        
-        try:
-            audience_content = generate_audience_slide_content(target_audience, persona)
-            if not validate_slide_content(audience_content, "audience_slide"):
-                audience_content = create_fallback_audience_slide(target_audience)
-        except Exception as e:
-            print(f"Error generating audience slide: {str(e)}")
+            
+        audience_content = parallel_results.get('audience_slide', create_fallback_audience_slide(target_audience))
+        if not validate_slide_content(audience_content, "audience_slide"):
             audience_content = create_fallback_audience_slide(target_audience)
-        
-        try:
-            cta_content = generate_cta_slide_content(call_to_action, product_name, persona)
-            if not validate_slide_content(cta_content, "cta_slide"):
-                cta_content = create_fallback_cta_slide(call_to_action, product_name)
-        except Exception as e:
-            print(f"Error generating CTA slide: {str(e)}")
+            
+        cta_content = parallel_results.get('cta_slide', create_fallback_cta_slide(call_to_action, product_name))
+        if not validate_slide_content(cta_content, "cta_slide"):
             cta_content = create_fallback_cta_slide(call_to_action, product_name)
         
         # Define all basic slides
@@ -121,45 +161,59 @@ def generate_presentation_content(
             'audience_slide': audience_content,
             'cta_slide': cta_content
         }
-        
-        # Generate additional slides with strong validation and fallbacks
+          # Generate additional slides with parallel processing
         candidate_additional_slides = {}
         
-        # Immediate execution with error handling for additional slides
-        try:
-            market_content = generate_market_slide_content(target_audience, persona)
-            if validate_slide_content(market_content, "market_slide"):
-                candidate_additional_slides['market_slide'] = market_content
-            else:
-                candidate_additional_slides['market_slide'] = create_fallback_market_slide(target_audience)
-        except Exception as e:
-            print(f"Error generating market slide: {str(e)}")
+        # Define content generators for additional slides
+        additional_generators = {
+            'market_slide': generate_market_slide_content,
+            'roadmap_slide': generate_roadmap_slide_content,
+            'team_slide': generate_team_slide_content
+        }
+        
+        # Define arguments for each additional generator function
+        additional_slide_args = {
+            'market_slide': (target_audience, persona),
+            'roadmap_slide': (product_name, persona),
+            'team_slide': (company_name, persona)
+        }
+        
+        # Define additional slide types to generate
+        additional_slide_types = ['market_slide', 'roadmap_slide', 'team_slide']
+        
+        # Generate additional slides in parallel
+        print("Generating additional slides in parallel...")
+        additional_results = generate_slides_in_parallel(
+            additional_generators,
+            additional_slide_types,
+            additional_slide_args,
+            max_workers=3  # Limit to 3 workers to avoid API rate limits
+        )
+        
+        # Process market slide
+        market_content = additional_results.get('market_slide', create_fallback_market_slide(target_audience))
+        if validate_slide_content(market_content, "market_slide"):
+            candidate_additional_slides['market_slide'] = market_content
+        else:
             candidate_additional_slides['market_slide'] = create_fallback_market_slide(target_audience)
-            
-        try:
-            roadmap_content = generate_roadmap_slide_content(product_name, persona)
-            if validate_slide_content(roadmap_content, "roadmap_slide"):
-                candidate_additional_slides['roadmap_slide'] = roadmap_content
-            else:
-                candidate_additional_slides['roadmap_slide'] = create_fallback_roadmap_slide(product_name)
-        except Exception as e:
-            print(f"Error generating roadmap slide: {str(e)}")
+        
+        # Process roadmap slide
+        roadmap_content = additional_results.get('roadmap_slide', create_fallback_roadmap_slide(product_name))
+        if validate_slide_content(roadmap_content, "roadmap_slide"):
+            candidate_additional_slides['roadmap_slide'] = roadmap_content
+        else:
             candidate_additional_slides['roadmap_slide'] = create_fallback_roadmap_slide(product_name)
-            
-        try:
-            team_content = generate_team_slide_content(company_name, persona)
-            if validate_slide_content(team_content, "team_slide"):
-                candidate_additional_slides['team_slide'] = team_content
-            else:
-                candidate_additional_slides['team_slide'] = create_fallback_team_slide(company_name)
-        except Exception as e:
-            print(f"Error generating team slide: {str(e)}")
+        
+        # Process team slide
+        team_content = additional_results.get('team_slide', create_fallback_team_slide(company_name))
+        if validate_slide_content(team_content, "team_slide"):
+            candidate_additional_slides['team_slide'] = team_content
+        else:
             candidate_additional_slides['team_slide'] = create_fallback_team_slide(company_name)
 
         # Select slides based on slide_count and persona
         selected_slides = select_slides_for_presentation(all_slides, candidate_additional_slides, slide_count, persona)
-        
-        # Apply persona-specific enhancements to the selected content
+          # Apply persona-specific enhancements to the selected content
         selected_slides = enhance_content_for_persona(selected_slides, persona)
         
         # Add metadata with persona focus indicator
@@ -170,6 +224,9 @@ def generate_presentation_content(
             'slide_count': len(selected_slides) - 1,  # Exclude metadata from count
             'persona_focused': persona != "Generic"
         }
+        
+        # Cache the result
+        st.session_state.full_presentation_cache[cache_key] = selected_slides
         
         return selected_slides
     except Exception as e:

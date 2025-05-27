@@ -1,10 +1,94 @@
 import google.generativeai as genai
 from typing import Dict, List, Any
 import json
+import logging
 
-def generate_title_slide_content(product_name: str, company_name: str) -> Dict[str, Any]:
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Cache to store generated content
+_content_cache = {}
+# Cache to store fetched images (path or URL mapped to image data)
+_image_cache = {}
+
+# Always use the same model for consistency
+MODEL_NAME = 'gemini-1.5-flash'
+
+# Function to get an image from cache or fetch a new one if needed
+def get_image(image_path_or_url, fetch_function=None, force_refresh=False):
+    """
+    Get an image from cache or fetch a new one if needed.
+    
+    Args:
+        image_path_or_url: Path or URL of the image
+        fetch_function: Function to fetch the image if not in cache
+        force_refresh: Force refresh the image from source
+    
+    Returns:
+        The image data
+    """
+    if not force_refresh and image_path_or_url in _image_cache:
+        return _image_cache[image_path_or_url]
+    
+    if fetch_function:
+        image_data = fetch_function(image_path_or_url)
+        _image_cache[image_path_or_url] = image_data
+        return image_data
+    
+    return None
+
+# Function to cache all images in a presentation
+def cache_presentation_images(presentation_data):
+    """
+    Cache all images in a presentation.
+    
+    Args:
+        presentation_data: The presentation data containing slides with images
+    """
+    global _image_cache
+    
+    # Extract image URLs/paths from presentation_data and store in _image_cache
+    if isinstance(presentation_data, dict) and 'slides' in presentation_data:
+        for slide in presentation_data['slides']:
+            if 'background_image' in slide and slide['background_image']:
+                _image_cache[slide['background_image']] = True
+            
+            # Handle other image properties based on your presentation structure
+            # This is a generic example - adapt to your actual data structure
+            if 'images' in slide:
+                for img in slide['images']:
+                    if 'url' in img:
+                        _image_cache[img['url']] = True
+
+# Function to clear image cache
+def clear_image_cache():
+    """Clear the image cache."""
+    global _image_cache
+    _image_cache = {}
+
+# Function to get a copy of the current image cache
+def get_image_cache():
+    """Get a copy of the current image cache."""
+    return _image_cache.copy()
+
+# Function to set the image cache with provided data
+def set_image_cache(cache_data):
+    """Set the image cache with provided data."""
+    global _image_cache
+    _image_cache = cache_data
+
+def generate_title_slide_content(product_name: str, company_name: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate title slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"title_{product_name}_{company_name}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        logger.info(f"Using cached title slide content for {product_name}")
+        return _content_cache[cache_key]
+    
+    logger.info(f"Generating title slide content for {product_name}")
+    model = genai.GenerativeModel(MODEL_NAME)
     
     prompt = f"""
     Create a professional title slide for a business presentation with these details:
@@ -19,8 +103,18 @@ def generate_title_slide_content(product_name: str, company_name: str) -> Dict[s
     Make the title concise but impactful. Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating title slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": f"{product_name}",
+            "subtitle": f"Presented by {company_name}",
+            "product_name": product_name
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -29,11 +123,22 @@ def generate_title_slide_content(product_name: str, company_name: str) -> Dict[s
         content["subtitle"] = f"Presented by {company_name}"
     content["product_name"] = product_name
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_problem_slide_content(problem_statement: str, persona: str) -> Dict[str, Any]:
+def generate_problem_slide_content(problem_statement: str, persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate problem slide content with persona-specific focus."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"problem_{problem_statement}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        logger.info(f"Using cached problem slide content for {persona} persona")
+        return _content_cache[cache_key]
+    
+    logger.info(f"Generating problem slide content for {persona} persona")
+    model = genai.GenerativeModel(MODEL_NAME)
     
     # Enhanced persona-specific prompts
     persona_prompts = {
@@ -69,8 +174,17 @@ def generate_problem_slide_content(problem_statement: str, persona: str) -> Dict
     Format as valid JSON only. Each bullet point should be specific to {persona} concerns.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating problem slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": "The Problem",
+            "pain_points": [s.strip() + "." for s in problem_statement.split(". ") if s.strip()][:3]
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -79,11 +193,20 @@ def generate_problem_slide_content(problem_statement: str, persona: str) -> Dict
         # Extract simple bullet points from the problem statement
         content["pain_points"] = [s.strip() + "." for s in problem_statement.split(". ") if s.strip()][:3]
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_solution_slide_content(product_name: str, problem_statement: str, persona: str) -> Dict[str, Any]:
+def generate_solution_slide_content(product_name: str, problem_statement: str, persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate solution slide content with persona-specific value proposition."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"solution_{product_name}_{problem_statement}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     # Enhanced persona-specific solution focus
     persona_prompts = {
@@ -120,8 +243,17 @@ def generate_solution_slide_content(product_name: str, problem_statement: str, p
     Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating solution slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": f"Introducing {product_name}",
+            "paragraph": f"{product_name} is designed to address these challenges with an innovative approach that helps organizations achieve better outcomes."
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -129,11 +261,20 @@ def generate_solution_slide_content(product_name: str, problem_statement: str, p
     if not content.get("paragraph"):
         content["paragraph"] = f"{product_name} is designed to address these challenges with an innovative approach that helps organizations achieve better outcomes."
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_features_slide_content(key_features: List[str], persona: str) -> Dict[str, Any]:
+def generate_features_slide_content(key_features: List[str], persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate features slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"features_{'_'.join(key_features[:3])}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     # Limit to 5 features
     features_text = "\n".join(f"- {f}" for f in key_features[:5])
@@ -147,7 +288,6 @@ def generate_features_slide_content(key_features: List[str], persona: str) -> Di
         persona_specific = "Focus on business impact and strategic advantages."
     elif persona == "Investor":
         persona_specific = "Focus on market differentiation and competitive advantages."
-    
     prompt = f"""
     Create a key features slide based on these features:
     {features_text}
@@ -161,8 +301,17 @@ def generate_features_slide_content(key_features: List[str], persona: str) -> Di
     Each feature should be concise but clear. Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating features slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": "Key Features",
+            "features": key_features[:5]
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -170,11 +319,20 @@ def generate_features_slide_content(key_features: List[str], persona: str) -> Di
     if not content.get("features") or not isinstance(content.get("features"), list):
         content["features"] = key_features[:5]
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_advantage_slide_content(competitive_advantage: str, persona: str) -> Dict[str, Any]:
+def generate_advantage_slide_content(competitive_advantage: str, persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate competitive advantage slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"advantage_{competitive_advantage}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     persona_specific = ""
     if persona == "Technical":
@@ -199,8 +357,17 @@ def generate_advantage_slide_content(competitive_advantage: str, persona: str) -
     Make each differentiator concise but specific. Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating advantage slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": "Our Competitive Advantage",
+            "differentiators": [s.strip() + "." for s in competitive_advantage.split(". ") if s.strip()][:3]
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -209,11 +376,20 @@ def generate_advantage_slide_content(competitive_advantage: str, persona: str) -
         # Extract simple bullet points from the competitive advantage
         content["differentiators"] = [s.strip() + "." for s in competitive_advantage.split(". ") if s.strip()][:3]
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_audience_slide_content(target_audience: str, persona: str) -> Dict[str, Any]:
+def generate_audience_slide_content(target_audience: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate target audience slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"audience_{target_audience}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     persona_specific = ""
     if persona == "Technical":
@@ -238,8 +414,17 @@ def generate_audience_slide_content(target_audience: str, persona: str) -> Dict[
     Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating audience slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": "Target Audience",
+            "paragraph": target_audience
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -247,11 +432,20 @@ def generate_audience_slide_content(target_audience: str, persona: str) -> Dict[
     if not content.get("paragraph"):
         content["paragraph"] = target_audience
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_cta_slide_content(call_to_action: str, product_name: str, persona: str) -> Dict[str, Any]:
+def generate_cta_slide_content(call_to_action: str, product_name: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate call to action slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"cta_{call_to_action}_{product_name}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     persona_specific = ""
     if persona == "Technical":
@@ -278,8 +472,18 @@ def generate_cta_slide_content(call_to_action: str, product_name: str, persona: 
     Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating CTA slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": "Get Started Today",
+            "cta_text": call_to_action or f"Contact us to learn more about {product_name}",
+            "bullets": ["Schedule a demo", "Start your free trial", "Speak with our experts"]
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -287,11 +491,20 @@ def generate_cta_slide_content(call_to_action: str, product_name: str, persona: 
     if not content.get("cta_text"):
         content["cta_text"] = call_to_action or f"Contact us to learn more about {product_name}"
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_market_slide_content(target_audience: str, persona: str) -> Dict[str, Any]:
+def generate_market_slide_content(target_audience: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate market opportunity slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"market_{target_audience}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     persona_specific = ""
     if persona == "Investor" or persona == "Executive":
@@ -312,8 +525,19 @@ def generate_market_slide_content(target_audience: str, persona: str) -> Dict[st
     Be specific and data-driven with realistic but impressive figures. Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating market slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": "Market Opportunity",
+            "market_size": "$25B by 2025",
+            "growth_rate": "15% CAGR",
+            "description": "The market is experiencing significant growth as organizations increasingly recognize the need for innovative solutions in this space."
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -325,11 +549,20 @@ def generate_market_slide_content(target_audience: str, persona: str) -> Dict[st
     if not content.get("description"):
         content["description"] = "The market is experiencing significant growth as organizations increasingly recognize the need for innovative solutions in this space."
     
+    # Cache the result
+    _content_cache[cache_key] = content
+    
     return content
 
-def generate_roadmap_slide_content(product_name: str, persona: str) -> Dict[str, Any]:
+def generate_roadmap_slide_content(product_name: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate product roadmap slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"roadmap_{product_name}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     persona_specific = ""
     if persona == "Technical":
@@ -355,8 +588,30 @@ def generate_roadmap_slide_content(product_name: str, persona: str) -> Dict[str,
     Make the roadmap realistic and strategic. Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating roadmap slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": f"{product_name}: Product Roadmap",
+            "phases": [
+                {
+                    "name": "Phase 1: Foundation",
+                    "items": ["Initial launch", "Core features", "First customers"]
+                },
+                {
+                    "name": "Phase 2: Expansion",
+                    "items": ["Advanced analytics", "Integration APIs", "Expanded support"]
+                },
+                {
+                    "name": "Phase 3: Evolution",
+                    "items": ["Enterprise features", "Global expansion", "Industry partnerships"]
+                }
+            ]
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -384,18 +639,27 @@ def generate_roadmap_slide_content(product_name: str, persona: str) -> Dict[str,
             if not isinstance(phase, dict):
                 content["phases"][i] = {
                     "name": f"Phase {i+1}",
-                    "items": ["Milestone 1", "Milestone 2", "Milestone 3"]
+                    "items": ["Feature 1", "Feature 2", "Feature 3"]
                 }
             elif "name" not in phase:
                 phase["name"] = f"Phase {i+1}"
             elif "items" not in phase or not isinstance(phase["items"], list):
-                phase["items"] = ["Milestone 1", "Milestone 2", "Milestone 3"]
+                phase["items"] = ["Feature 1", "Feature 2", "Feature 3"]
+    
+    # Cache the result
+    _content_cache[cache_key] = content
     
     return content
 
-def generate_team_slide_content(company_name: str, persona: str) -> Dict[str, Any]:
+def generate_team_slide_content(company_name: str, persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate team slide content."""
-    model = genai.GenerativeModel('gemini-pro')
+    cache_key = f"team_{company_name}_{persona}"
+    
+    # Return cached content if available and use_cache is True
+    if use_cache and cache_key in _content_cache:
+        return _content_cache[cache_key]
+    
+    model = genai.GenerativeModel(MODEL_NAME)
     
     prompt = f"""
     Create a team slide for "{company_name}" with fictional leadership team members.
@@ -410,8 +674,23 @@ def generate_team_slide_content(company_name: str, persona: str) -> Dict[str, An
     Be professional and diverse. Format as valid JSON only.
     """
     
-    response = model.generate_content(prompt)
-    content = extract_json_from_response(response.text)
+    # Make API call directly without rate limiting
+    try:
+        response = model.generate_content(prompt)
+        content = extract_json_from_response(response.text)
+    except Exception as e:
+        logger.error(f"Error generating team slide: {e}")
+        # Provide fallback content
+        content = {
+            "title": f"{company_name} Leadership Team",
+            "team_members": [
+                {"name": "Alex Johnson", "role": "Chief Executive Officer"},
+                {"name": "Sam Washington", "role": "Chief Technology Officer"},
+                {"name": "Jordan Smith", "role": "VP of Product"},
+                {"name": "Taylor Rivera", "role": "VP of Customer Success"}
+            ],
+            "tagline": "Building innovative solutions for tomorrow's challenges"
+        }
     
     # Ensure correct fields exist
     if not content.get("title"):
@@ -428,7 +707,10 @@ def generate_team_slide_content(company_name: str, persona: str) -> Dict[str, An
     
     # Ensure tagline exists
     if not content.get("tagline"):
-        content["tagline"] = f"Building innovative solutions for tomorrow's challenges"
+        content["tagline"] = "Building innovative solutions for tomorrow's challenges"
+    
+    # Cache the result
+    _content_cache[cache_key] = content
     
     return content
 
@@ -440,28 +722,36 @@ def extract_json_from_response(response_text: str) -> Dict[str, Any]:
     
     # Handle string response
     try:
-        # Look for JSON block in markdown code blocks
-        if "```json" in response_text:
-            json_text = response_text.split("```json")[1].split("```")[0].strip()
-            return json.loads(json_text)
+        import re
+        import json
         
-        # Look for JSON block with just code blocks
-        elif "```" in response_text:
-            json_text = response_text.split("```")[1].split("```")[0].strip()
-            return json.loads(json_text)
-            
-        # Try to parse the entire response as JSON
+        if not isinstance(response_text, str):
+            response_text = str(response_text)
+        
+        # Try to find JSON content within the string
+        json_pattern = r'({[\s\S]*})'
+        match = re.search(json_pattern, response_text)
+        if match:
+            json_str = match.group(1)
+            return json.loads(json_str)
         else:
-            return json.loads(response_text.strip())
-    except:
-        try:
-            # Try to extract just the JSON part with braces
-            if "{" in response_text and "}" in response_text:
-                json_text = response_text[response_text.find("{"):response_text.rfind("}")+1]
-                return json.loads(json_text)
-        except:
-            pass
-    
-    # Return empty dict if all parsing fails
-    print(f"Failed to parse JSON from response: {response_text[:100]}...")
-    return {}
+            # If no match, try to parse the whole string as JSON
+            return json.loads(response_text)
+    except Exception as e:
+        logger.warning(f"Failed to extract JSON from response: {e}")
+        # Return empty dict if parsing fails
+        return {}
+
+def clear_content_cache():
+    """Clear the content cache."""
+    global _content_cache
+    _content_cache = {}
+
+def get_cached_content():
+    """Get a copy of the current content cache."""
+    return _content_cache.copy()
+
+def set_content_cache(cache_data):
+    """Set the content cache with provided data."""
+    global _content_cache
+    _content_cache = cache_data

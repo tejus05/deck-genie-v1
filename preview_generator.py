@@ -41,6 +41,118 @@ class SlidePreviewGenerator:
         
         # Render all slides - this will show the new slide with animation
         self.render_all_preview_slides(animate_last=True)
+
+    def update_preview_with_content(self, content: Dict[str, Any]) -> None:
+        """
+        Update the preview with content from a fully generated presentation.
+        This efficiently reuses cached content without regenerating slides.
+        
+        Args:
+            content: Dictionary containing presentation content
+        """
+        # Reset current preview
+        st.session_state.preview_slides = []
+        
+        # Get slide keys in the proper order
+        slide_keys = []
+        
+        # Get slide count from metadata
+        slide_count = 7  # Default if not specified
+        if 'metadata' in content and 'slide_count' in content['metadata']:
+            slide_count = content['metadata']['slide_count']
+        
+        # First, add slides based on metadata included_slides if available
+        if 'metadata' in content and 'included_slides' in content['metadata']:
+            # Important: Limit to the specified slide count
+            slide_keys = content['metadata']['included_slides'][:slide_count]
+        else:
+            # Fallback to standard slide order
+            standard_slides = ['title_slide', 'problem_slide', 'solution_slide', 'features_slide', 
+                              'advantage_slide', 'audience_slide', 'cta_slide']
+            additional_slides = ['market_slide', 'roadmap_slide', 'team_slide']
+            
+            # Add available slides in standard order, limited by slide count
+            for slide_type in standard_slides + additional_slides:
+                if slide_type in content and len(slide_keys) < slide_count:
+                    slide_keys.append(slide_type)
+        
+        # Create preview slides without animation delays
+        for slide_type in slide_keys:
+            if slide_type in content:
+                icon = self._get_slide_icon(slide_type)
+                title = self._get_slide_title(slide_type)
+                
+                slide = {
+                    'type': slide_type,
+                    'icon': icon,
+                    'title': title,
+                    'data': content[slide_type]
+                }
+                
+                st.session_state.preview_slides.append(slide)
+        
+        # Render all slides at once, no animation
+        self.render_all_preview_slides(animate_last=False)
+    
+    def update_preview_from_session_state(self, editor_content: Dict[str, Any], slide_order: List[str], deleted_slides: set) -> None:
+        """
+        Update the preview based on current session state editor content.
+        Used for real-time updates during customization.
+        
+        Args:
+            editor_content: Dictionary containing edited slide content
+            slide_order: List of slide keys in desired order
+            deleted_slides: Set of slide keys that are deleted
+        """
+        # Reset current preview
+        st.session_state.preview_slides = []
+        
+        # Get slide count limit from metadata if available
+        slide_count = 10  # Default maximum
+        if 'metadata' in editor_content and 'slide_count' in editor_content['metadata']:
+            slide_count = editor_content['metadata']['slide_count']
+        
+        # Track how many slides we've added
+        slides_added = 0
+        
+        # Add slides in the specified order, skipping deleted ones and respecting slide count
+        for slide_type in slide_order:
+            # Stop if we've reached the slide count limit
+            if slides_added >= slide_count:
+                break
+                
+            if slide_type not in deleted_slides and slide_type in editor_content:
+                icon = self._get_slide_icon(slide_type)
+                title = self._get_slide_title(slide_type)
+                
+                slide = {
+                    'type': slide_type,
+                    'icon': icon,
+                    'title': title,
+                    'data': editor_content[slide_type]
+                }
+                
+                st.session_state.preview_slides.append(slide)
+                slides_added += 1
+        
+        # Render all slides at once, no animation
+        self.render_all_preview_slides(animate_last=False)
+    
+    def get_current_slide_order_for_customization(self) -> List[str]:
+        """Get the current slide order from preview for customization."""
+        return [slide['type'] for slide in st.session_state.preview_slides]
+    
+    def get_preview_slides_data(self) -> Dict[str, Any]:
+        """Get the slide data from preview slides."""
+        return {slide['type']: slide['data'] for slide in st.session_state.preview_slides}
+    
+    def get_slide_display_name(self, slide_type: str) -> str:
+        """Get display name for a slide type."""
+        return self._get_slide_title(slide_type)
+    
+    def get_slide_icon(self, slide_type: str) -> str:
+        """Get icon for a slide type."""
+        return self._get_slide_icon(slide_type)
     
     def render_all_preview_slides(self, animate_last=False):
         """Render all preview slides with equal dimensions."""
@@ -239,8 +351,8 @@ def simulate_slide_generation_with_preview(
     for slide_type in additional_slides:
         if slide_type in content and len(slide_sequence) < slide_count:
             slide_sequence.append(slide_type)
-    
-    # Sequential slide generation with pauses
+            
+    # Sequential slide preview generation with visual timing for live preview effect
     for i, slide_type in enumerate(slide_sequence):
         # Calculate progress percentage
         progress_value = 15 + int((i+1) / len(slide_sequence) * 55)
@@ -278,11 +390,12 @@ def simulate_slide_generation_with_preview(
             progress_status.markdown("### 🧠 Introducing the team...")
             progress_detail.markdown("_Highlighting key team members and expertise_")
         
-        # Add slight delay for visual effect - longer for first slide, shorter for others
-        time.sleep(1.2 if i == 0 else 0.8)
-        
         # Add the slide to the preview with animation
         preview_generator.add_slide_preview(content[slide_type], slide_type)
+        
+        # Add short delay for visual effect - just enough to show sequential appearance
+        # but not enough to significantly slow down the process
+        time.sleep(0.4)  # Reduced from 0.8-1.2 seconds to 0.4 seconds
     
     # Store the included slides in metadata
     content['metadata']['included_slides'] = slide_sequence
