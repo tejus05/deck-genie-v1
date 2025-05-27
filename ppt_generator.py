@@ -10,13 +10,15 @@ from utils import FONTS, COLORS, FONT_SIZES, MARGINS, CONTENT_AREA, IMAGE_AREA, 
 # Import additional slide creation functions
 from ppt_generator_additions import create_market_slide, create_roadmap_slide, create_team_slide
 
-def create_presentation(content: Dict[str, Any], filename: str) -> io.BytesIO:
+def create_presentation(content: Dict[str, Any], filename: str, image_manager=None, custom_slide_order: List[str] = None) -> io.BytesIO:
     """
-    Create a PowerPoint presentation from generated content.
+    Create a PowerPoint presentation from generated content with optional custom slide order.
     
     Args:
         content: Dictionary containing content for all slides
         filename: Name to give the file
+        image_manager: Optional image manager for custom images
+        custom_slide_order: Optional list specifying the order of slides
         
     Returns:
         BytesIO object containing the presentation
@@ -33,37 +35,69 @@ def create_presentation(content: Dict[str, Any], filename: str) -> io.BytesIO:
     if 'original_images_cache' not in st.session_state:
         st.session_state.original_images_cache = {}
     
-    # Create required slides first
-    create_title_slide(prs, content['title_slide'])
-    
-    # Create other slides if they exist in the content
-    if 'problem_slide' in content:
-        create_problem_slide(prs, content['problem_slide'], content)
+    # Determine slide order
+    if custom_slide_order:
+        # Filter out any slide types that don't exist in the content
+        slide_order = [slide_type for slide_type in custom_slide_order if slide_type in content]
         
-    if 'solution_slide' in content:
-        create_solution_slide(prs, content['solution_slide'], content)
-    
-    if 'features_slide' in content:
-        create_features_slide(prs, content['features_slide'])
-    
-    if 'advantage_slide' in content:
-        create_advantage_slide(prs, content['advantage_slide'], content)
-    
-    if 'audience_slide' in content:
-        create_audience_slide(prs, content['audience_slide'], content)
+        # For safety, add any missing slides that are in content but not in custom_slide_order
+        for slide_type in content:
+            if slide_type.endswith('_slide') and slide_type not in slide_order:
+                slide_order.append(slide_type)
+    else:
+        # Default order: title first, core slides, then optional slides, CTA last
+        core_slides = ['title_slide', 'problem_slide', 'solution_slide', 'features_slide', 
+                       'advantage_slide', 'audience_slide']
+        optional_slides = ['market_slide', 'roadmap_slide', 'team_slide']
+        cta_slide = ['cta_slide']
         
-    # Add optional slides if they exist
-    if 'market_slide' in content:
-        create_market_slide(prs, content['market_slide'], content)
+        slide_order = []
         
-    if 'roadmap_slide' in content:
-        create_roadmap_slide(prs, content['roadmap_slide'], content)
+        # Add core slides that exist in content
+        for slide_type in core_slides:
+            if slide_type in content:
+                slide_order.append(slide_type)
         
-    if 'team_slide' in content:
-        create_team_slide(prs, content['team_slide'], content)
+        # Add optional slides that exist in content
+        for slide_type in optional_slides:
+            if slide_type in content:
+                slide_order.append(slide_type)
+        
+        # CTA slide always last if it exists
+        if 'cta_slide' in content:
+            slide_order.append('cta_slide')
     
-    # CTA slide should always be last
-    create_cta_slide(prs, content['cta_slide'])
+    # Debug info for slide order
+    print(f"Creating presentation with slides in order: {slide_order}")
+    
+    # Create slides in the specified order
+    for slide_type in slide_order:
+        if slide_type not in content:
+            continue
+            
+        slide_data = content[slide_type]
+        
+        # Create the appropriate slide based on type
+        if slide_type == 'title_slide':
+            create_title_slide(prs, slide_data)
+        elif slide_type == 'problem_slide':
+            create_problem_slide(prs, slide_data, content)
+        elif slide_type == 'solution_slide':
+            create_solution_slide(prs, slide_data, content)
+        elif slide_type == 'features_slide':
+            create_features_slide(prs, slide_data)
+        elif slide_type == 'advantage_slide':
+            create_advantage_slide(prs, slide_data, content)
+        elif slide_type == 'audience_slide':
+            create_audience_slide(prs, slide_data, content)
+        elif slide_type == 'market_slide':
+            create_market_slide(prs, slide_data, content)
+        elif slide_type == 'roadmap_slide':
+            create_roadmap_slide(prs, slide_data, content)
+        elif slide_type == 'team_slide':
+            create_team_slide(prs, slide_data, content)
+        elif slide_type == 'cta_slide':
+            create_cta_slide(prs, slide_data)
     
     # Save to BytesIO
     output = io.BytesIO()

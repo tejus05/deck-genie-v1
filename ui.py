@@ -188,7 +188,6 @@ def render_ui():
                         
                         features_list = [f for f in key_features.strip().split('\n') if f]
                         
-                        # Generate the content with sequential slide previews
                         content = simulate_slide_generation_with_preview(
                             generate_presentation_content,
                             (company_name, product_name, target_audience, problem_statement, 
@@ -203,10 +202,12 @@ def render_ui():
                         progress_detail.markdown("_Creating a visually appealing presentation..._")
                         progress_bar.progress(70)
                         
-                        # Store slide count in content metadata for future use
+                        # Store slide count and other metadata AFTER content is generated
                         if 'metadata' not in content:
                             content['metadata'] = {}
                         content['metadata']['slide_count'] = slide_count
+                        content['metadata']['company_name'] = company_name
+                        content['metadata']['product_name'] = product_name
                         
                         progress_status.markdown("### 📊 Assembling your presentation...")
                         progress_detail.markdown("_Putting everything together in a cohesive package_")
@@ -273,45 +274,50 @@ def render_ui():
         st.markdown("---")
         st.markdown("## 🛠️ Customize Your Presentation")
         
-        # Initialize slide editor state before using it
-        slide_editor = SlideEditor()
-        slide_editor.initialize_editor_state(st.session_state.original_content)
-        slide_editor.preview_generator = preview_generator
+        # Initialize slide order using our new function if not already done
+        from slide_reordering import initialize_slide_order, render_slide_reordering_ui, generate_reordered_presentation
         
-        # Ensure slide_order is properly initialized before reordering
+        # Initialize slide_order only when first showing this section
         if 'slide_order' not in st.session_state:
-            st.session_state.slide_order = slide_editor.slide_keys.copy()
+            st.session_state.slide_order = initialize_slide_order(st.session_state.original_content)
         
         st.markdown("### Reorder your slides using the buttons below")
-        slide_editor._render_slide_reordering()
+        render_slide_reordering_ui(st.session_state.original_content)
         
-        # Download reordered presentation
+        # Download reordered presentation if modifications have been made
         if st.session_state.get('has_modifications', False):
             st.markdown("---")
             st.markdown("## 🔄 Download Reordered Version")
             st.markdown("✅ **Slide order changed** - Download your reordered presentation")
             
             try:
-                modified_content = slide_editor._prepare_modified_content(st.session_state.original_content)
-                modified_filename = f"{sanitize_filename(original_content_meta['company_name'])}_{sanitize_filename(original_content_meta['product_name'])}_Reordered.pptx"
+                # Get metadata for filenames
+                original_content_meta = st.session_state.original_content.get('metadata', {})
+                company_name = original_content_meta.get('company_name', "Company")
+                product_name = original_content_meta.get('product_name', "Product")
                 
-                from image_manager import ImageManager
-                image_manager = ImageManager(
-                    st.session_state.get('uploaded_images', {}), # Custom uploaded images
-                    st.session_state.get('original_images_cache', {}) # Original fetched images
-                )
-                modified_buffer = slide_editor._create_modified_presentation(modified_content, modified_filename, image_manager)
+                # Create filename
+                modified_filename = f"{sanitize_filename(company_name)}_{sanitize_filename(product_name)}_Reordered.pptx"
                 
-                st.download_button(
-                    label="📥 Download Reordered Presentation",
-                    data=modified_buffer,
-                    file_name=modified_filename,
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True,
+                # Generate the reordered presentation
+                reordered_buffer = generate_reordered_presentation(
+                    st.session_state.original_content,
+                    st.session_state.slide_order,
+                    modified_filename
                 )
+                
+                # Show download button if we have valid data
+                if reordered_buffer:
+                    st.download_button(
+                        label="📥 Download Reordered Presentation",
+                        data=reordered_buffer,
+                        file_name=modified_filename,
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        use_container_width=True,
+                    )
             except Exception as e:
                 st.error(f"Error creating reordered presentation: {str(e)}")
-
+        
 # This ensures that the render_ui function is available when imported
 if __name__ == "__main__":
     render_ui()
