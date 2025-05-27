@@ -172,12 +172,10 @@ def render_ui():
                         progress_bar = st.progress(0)
                         progress_status = st.empty()
                         progress_detail = st.empty()
-                        
                         progress_status.markdown("### 🚀 Starting the creation process...")
                         progress_detail.markdown("_Analyzing your inputs..._")
                         progress_bar.progress(10)
                         st.balloons()
-                        
                         preview_generator.create_preview_container()
                         st.session_state.preview_shown_during_generation = True
                         
@@ -196,6 +194,11 @@ def render_ui():
                         progress_status.markdown("### 🎨 Designing your slides...")
                         progress_detail.markdown("_Creating a visually appealing presentation..._")
                         progress_bar.progress(70)
+                        
+                        # Store slide count in content metadata for future use
+                        if 'metadata' not in content:
+                            content['metadata'] = {}
+                        content['metadata']['slide_count'] = slide_count
                         
                         progress_status.markdown("### 📊 Assembling your presentation...")
                         progress_detail.markdown("_Putting everything together in a cohesive package_")

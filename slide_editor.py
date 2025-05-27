@@ -16,7 +16,10 @@ class SlideEditor:
             "Key Features",
             "Competitive Advantage",
             "Target Audience", 
-            "Call to Action"
+            "Call to Action",
+            "Market Analysis",
+            "Product Roadmap",
+            "Team Overview"
         ]
         self.slide_keys = [
             "title_slide",
@@ -25,7 +28,10 @@ class SlideEditor:
             "features_slide",
             "advantage_slide",
             "audience_slide", 
-            "cta_slide"
+            "cta_slide",
+            "market_slide",
+            "roadmap_slide",
+            "team_slide"
         ]
     
     def initialize_editor_state(self, original_content: Dict[str, Any]):
@@ -64,8 +70,7 @@ class SlideEditor:
         # Slide reordering section
         st.markdown("### 🔄 Reorder Slides")
         self._render_slide_reordering()
-        
-        # Download buttons
+          # Download buttons
         self._render_download_buttons(original_content)
     
     def _ensure_deleted_slides_safe(self):
@@ -81,7 +86,7 @@ class SlideEditor:
                 }
             except (TypeError, AttributeError):
                 st.session_state.deleted_slides = set()
-
+    
     def _render_slide_reordering(self):
         """Render the slide reordering interface without causing app reruns."""
         # Ensure deleted_slides is safe to use
@@ -90,6 +95,12 @@ class SlideEditor:
         # Ensure slide_order exists and is properly initialized
         if 'slide_order' not in st.session_state or not st.session_state.slide_order:
             st.session_state.slide_order = self.slide_keys.copy()
+        
+        # Check if we need to update slide_order with any new slides from editor_content
+        if 'editor_content' in st.session_state:
+            for slide_key in st.session_state.editor_content:
+                if slide_key != 'metadata' and slide_key not in st.session_state.slide_order and slide_key in self.slide_keys:
+                    st.session_state.slide_order.append(slide_key)
         
         # Validate slide_order contains valid keys
         valid_slide_order = [key for key in st.session_state.slide_order if key in self.slide_keys]
@@ -102,8 +113,10 @@ class SlideEditor:
             if slide_key not in st.session_state.deleted_slides and slide_key in self.slide_keys:
                 try:
                     slide_index = self.slide_keys.index(slide_key)
-                    slide_title = self.slide_titles[slide_index]
-                    active_slides.append((slide_key, slide_title))
+                    # Check if this slide is in editor_content to confirm it exists
+                    if 'editor_content' not in st.session_state or slide_key in st.session_state.editor_content:
+                        slide_title = self.slide_titles[slide_index]
+                        active_slides.append((slide_key, slide_title))
                 except (ValueError, IndexError):
                     continue
         
@@ -113,10 +126,14 @@ class SlideEditor:
         
         st.info("📝 Use the buttons below to reorder slides (changes are instant):")
         
-        # Use static keys that don't change when slide order changes
-        # This prevents the "double-click" issue caused by dynamic key generation
+        # Use columns for better layout
+        col_labels, col_buttons = st.columns([5, 2])
+        with col_labels:
+            st.write("**Current Slide Order:**")
+        with col_buttons:
+            st.write("**Actions:**")
         
-        # Display current order with simple move buttons
+        # Display current order with move buttons
         for i, (slide_key, slide_title) in enumerate(active_slides):
             col1, col2, col3 = st.columns([5, 1, 1])
             
@@ -128,12 +145,16 @@ class SlideEditor:
                 if i > 0:
                     if st.button("⬆️", key=f"move_up_{slide_key}", help="Move up"):
                         self._move_slide_up(slide_key)
+                        # Flag that modifications were made
+                        st.session_state.has_modifications = True
             
             with col3:
                 # Move down button
                 if i < len(active_slides) - 1:
                     if st.button("⬇️", key=f"move_down_{slide_key}", help="Move down"):
                         self._move_slide_down(slide_key)
+                        # Flag that modifications were made
+                        st.session_state.has_modifications = True
     
     def _move_slide_up(self, slide_key: str):
         """Move a slide up one position among active (non-deleted) slides."""
@@ -187,8 +208,7 @@ class SlideEditor:
         
         st.session_state.has_modifications = True
         self._update_preview_lightweight_no_rerun()
-        
-        # Force a clean rerun to prevent scrolling issues
+          # Force a clean rerun to prevent scrolling issues
         st.rerun()
     
     def _rebuild_full_order_from_active(self, reordered_active_slides):
@@ -196,10 +216,16 @@ class SlideEditor:
         new_order = []
         active_index = 0
         
+        # Keep track of all available slide keys including those in editor_content
+        all_available_keys = set(self.slide_keys)
+        if 'editor_content' in st.session_state:
+            for key in st.session_state.editor_content:
+                if key != 'metadata':
+                    all_available_keys.add(key)
+                    
         # Go through the original slide order and insert active slides in new order
         for original_key in self.slide_keys:
-            if original_key in st.session_state.deleted_slides:
-                # Keep deleted slides at their original positions
+            if original_key in st.session_state.deleted_slides:                # Keep deleted slides at their original positions
                 new_order.append(original_key)
             else:
                 # Insert active slides in their new order
@@ -207,8 +233,22 @@ class SlideEditor:
                     new_order.append(reordered_active_slides[active_index])
                     active_index += 1
         
+        # Make sure we've included all active slides
+        while active_index < len(reordered_active_slides):
+            new_order.append(reordered_active_slides[active_index])
+            active_index += 1
+        
+        # Make sure all slides from editor_content are included
+        if 'editor_content' in st.session_state:
+            for key in st.session_state.editor_content:
+                if key != 'metadata' and key not in new_order and key not in st.session_state.deleted_slides:
+                    new_order.append(key)
+        
         # Update session state with the new order
         st.session_state.slide_order = new_order
+        
+        # Flag that modifications were made to enable download
+        st.session_state.has_modifications = True
 
     def _update_preview_lightweight_no_rerun(self):
         """Update preview order without any reruns or image fetching."""
@@ -512,17 +552,53 @@ class SlideEditor:
                     use_container_width=True,
                 )
     
-    def _prepare_modified_content(self, original_content: Dict[str, Any]) -> Dict[str, Any]:
-        """Prepare modified content based on user changes."""
-        modified_content = copy.deepcopy(st.session_state.editor_content)
+    def initialize_editor_state(self, content):
+        """Initialize the editor state with presentation content."""
+        if not content:
+            return
         
-        # Remove deleted slides
-        for slide_key in list(modified_content.keys()):
-            if slide_key != 'metadata' and slide_key in st.session_state.deleted_slides:
-                del modified_content[slide_key]
+        # Get the slide count from metadata
+        slide_count = content.get('metadata', {}).get('slide_count', 7)
         
-        # Preserve metadata
-        modified_content['metadata'] = original_content['metadata']
+        # Get all available slide keys (that have content)
+        all_slide_keys = [key for key in content.keys() if key.endswith('_slide') and isinstance(content[key], dict)]
+        
+        # Respect the user's chosen slide count
+        self.slide_keys = all_slide_keys[:slide_count]
+        
+        # Add to session state if needed
+        if 'slide_order' not in st.session_state:
+            st.session_state.slide_order = self.slide_keys.copy()
+        elif len(st.session_state.slide_order) != slide_count:
+            # If slide count changed, update the order with only valid slides
+            st.session_state.slide_order = [
+                key for key in st.session_state.slide_order 
+                if key in self.slide_keys
+            ]
+            # Add any missing slides (should not happen normally)
+            for key in self.slide_keys:
+                if key not in st.session_state.slide_order:
+                    st.session_state.slide_order.append(key)
+    
+    def _prepare_modified_content(self, original_content):
+        """Prepare modified content based on slide order and edits."""
+        modified_content = {}
+        
+        # Copy metadata and non-slide content
+        for key, value in original_content.items():
+            if not key.endswith('_slide'):
+                modified_content[key] = value
+        
+        # Get the slide count from metadata
+        slide_count = original_content.get('metadata', {}).get('slide_count', 7)
+        
+        # Use ordered slides and respect slide count
+        ordered_slides = st.session_state.slide_order[:slide_count]
+        
+        # Copy the slides in the new order
+        for slide_key in ordered_slides:
+            if slide_key in original_content:
+                modified_content[slide_key] = original_content[slide_key]
         
         return modified_content
     

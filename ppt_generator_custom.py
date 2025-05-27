@@ -7,6 +7,7 @@ from pptx.dml.color import RGBColor
 from image_fetcher import get_slide_icon
 from utils import FONTS, COLORS, FONT_SIZES, MARGINS, CONTENT_AREA, IMAGE_AREA, match_icon_to_feature
 from image_manager import ImageManager
+from ppt_generator_additions import create_market_slide, create_roadmap_slide, create_team_slide
 
 def create_custom_presentation(content: Dict[str, Any], filename: str, slide_order: List[str], image_manager: ImageManager) -> io.BytesIO:
     """
@@ -39,11 +40,23 @@ def create_custom_presentation(content: Dict[str, Any], filename: str, slide_ord
         'roadmap_slide': lambda: create_custom_roadmap_slide(prs, content['roadmap_slide'], content, image_manager),
         'team_slide': lambda: create_custom_team_slide(prs, content['team_slide'], content, image_manager)
     }
+      # Create slides in the specified order, respecting the slide count
+    active_slide_count = 0
+    max_slides = 10
     
-    # Create slides in the specified order
+    # Determine slide count from metadata if available
+    if 'metadata' in content and 'slide_count' in content['metadata']:
+        max_slides = content['metadata']['slide_count']
+    
+    # First pass - create slides in specified order
     for slide_key in slide_order:
-        if slide_key in content and slide_key in slide_creators:
-            slide_creators[slide_key]()
+        if slide_key in content and slide_key in slide_creators and active_slide_count < max_slides:
+            try:
+                slide_creators[slide_key]()
+                active_slide_count += 1
+            except Exception as e:
+                print(f"Error creating slide {slide_key}: {str(e)}")
+                continue
     
     # Save to BytesIO
     output = io.BytesIO()
@@ -585,3 +598,18 @@ def create_custom_cta_slide(prs: Presentation, content: Dict[str, Any], image_ma
         stripe_box.fill.solid()
         stripe_box.fill.fore_color.rgb = RGBColor.from_string(COLORS["gray"])
         stripe_box.line.fill.background()
+
+def create_custom_market_slide(prs, slide_content, content, image_manager):
+    """Create a custom market slide with image management."""
+    # Use the standard implementation with image_manager
+    return create_market_slide(prs, slide_content, content, custom_image=image_manager.get_image_for_slide('market_slide'))
+
+def create_custom_roadmap_slide(prs, slide_content, content, image_manager):
+    """Create a custom roadmap slide with image management."""
+    # Use the standard implementation with image_manager
+    return create_roadmap_slide(prs, slide_content, content, custom_image=image_manager.get_image_for_slide('roadmap_slide'))
+
+def create_custom_team_slide(prs, slide_content, content, image_manager):
+    """Create a custom team slide with image management."""
+    # Use the standard implementation with image_manager
+    return create_team_slide(prs, slide_content, content, custom_image=image_manager.get_image_for_slide('team_slide'))

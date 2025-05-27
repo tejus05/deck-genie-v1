@@ -215,10 +215,62 @@ def simulate_slide_generation_with_preview(
     # Generate content for real
     content = content_generator_func(*args)
     
-    # Update preview with generated content
-    for slide_type, slide_data in content.items():
-        if slide_type != "metadata":
-            # Add a very small delay to make the updates visible
-            preview_generator.add_slide_preview(slide_data, slide_type)
+    # Get the slide count from args (it's the 8th argument)
+    # Make sure to handle both string and integer types safely
+    try:
+        slide_count = int(args[8]) if len(args) > 8 else 7
+    except (ValueError, TypeError):
+        slide_count = 7
+    
+    # Store the slide count in the content metadata for future reference
+    if 'metadata' not in content:
+        content['metadata'] = {}
+    content['metadata']['slide_count'] = slide_count
+    
+    # Define standard slides and additional slides
+    standard_slides = ['title_slide', 'problem_slide', 'solution_slide', 'features_slide', 
+                      'advantage_slide', 'audience_slide', 'cta_slide']
+    additional_slides = ['market_slide', 'roadmap_slide', 'team_slide']
+    
+    # Clear preview container first
+    st.session_state.preview_slides = []
+    
+    # Track which slides we include to respect the slide count
+    included_slides = []
+    
+    # Process standard slides first
+    for slide_type in standard_slides:
+        if slide_type in content and len(included_slides) < slide_count:
+            progress_status.markdown(f"### 🎨 Building {slide_type.replace('_', ' ').title()}...")
+            progress_detail.markdown(f"_Creating visual elements for this slide_")
+            
+            # Add a small delay to make the sequential updates visible
+            time.sleep(0.3)
+            
+            # Add slide to preview and track it
+            preview_generator.add_slide_preview(content[slide_type], slide_type)
+            included_slides.append(slide_type)
+    
+    # Then process additional slides if we need more to reach slide_count
+    for slide_type in additional_slides:
+        if len(included_slides) >= slide_count:
+            break
+            
+        if slide_type in content:
+            progress_status.markdown(f"### 🎨 Building {slide_type.replace('_', ' ').title()}...")
+            progress_detail.markdown(f"_Creating visual elements for this slide_")
+            
+            # Add a small delay to make the updates visible
+            time.sleep(0.3)
+            
+            # Add slide to preview and track it
+            preview_generator.add_slide_preview(content[slide_type], slide_type)
+            included_slides.append(slide_type)
+    
+    # Store the actually included slides in content metadata
+    content['metadata']['included_slides'] = included_slides
+    
+    # Update the progress bar to completion
+    progress_bar.progress(70)
     
     return content
