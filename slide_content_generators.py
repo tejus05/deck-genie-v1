@@ -15,6 +15,37 @@ _image_cache = {}
 # Always use the same model for consistency
 MODEL_NAME = 'gemini-1.5-flash'
 
+# --- Prompt Rewriting and Industry Terminology Utility ---
+def rewrite_prompt_with_structure(topic: str, persona: str, slide_type: str) -> str:
+    """
+    Rewrite a vague or general topic into a detailed, structured prompt with industry terminology and Problem → Solution → Proof structure.
+    """
+    # Industry-specific keywords
+    industry_keywords = {
+        "cloud": ["Multi-cloud", "hybrid", "containers", "latency", "uptime", "SLA", "AWS", "Azure", "GCP"],
+        "ai": ["model accuracy", "inference", "LLM", "neural networks", "transformers", "training data", "embeddings"],
+        "ml": ["model accuracy", "inference", "LLM", "neural networks", "transformers", "training data", "embeddings"],
+        "cyber": ["zero trust", "threat detection", "encryption", "firewall", "IDS", "phishing", "tokenization", "endpoint protection"],
+        "security": ["zero trust", "threat detection", "encryption", "firewall", "IDS", "phishing", "tokenization", "endpoint protection"]
+    }
+    # Lowercase topic for matching
+    topic_lc = topic.lower()
+    keywords = []
+    for k, v in industry_keywords.items():
+        if k in topic_lc:
+            keywords.extend(v)
+    # Remove duplicates
+    keywords = list(dict.fromkeys(keywords))
+    # Build terminology string
+    terminology = f"Include relevant terminology such as: {', '.join(keywords)}." if keywords else "Use industry-appropriate terminology."
+    # Persona context
+    persona_context = f"for a professional {persona} audience" if persona else "for a professional audience"
+    # Slide structure
+    structure = "Use the structure: Problem → Solution → Proof."
+    # Slide type context
+    slide_type_context = f"Create a slide {persona_context} about {topic}. {structure} {terminology} Keep the tone industry-appropriate."
+    return slide_type_context
+
 # Function to get an image from cache or fetch a new one if needed
 def get_image(image_path_or_url, fetch_function=None, force_refresh=False):
     """
@@ -159,19 +190,17 @@ def generate_problem_slide_content(problem_statement: str, persona: str, use_cac
     
     persona_specific = persona_prompts.get(persona, persona_prompts["Generic"])
     
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(problem_statement, persona, "problem")
+    
     prompt = f"""
-    Create a problem statement slide for {persona} audience based on this description:
-    "{problem_statement}"
-    
+    {improved_prompt}
     {persona_specific}
-    
-    Make the content highly relevant and actionable for {persona} professionals.
-    
-    Return a JSON object with these fields:
+    \nOriginal input: "{problem_statement}"
+    \nReturn a JSON object with these fields:
     - title: A compelling slide title about the problem (tailored for {persona} audience)
     - pain_points: An array of 3-4 specific pain points extracted/derived from the problem statement
-    
-    Format as valid JSON only. Each bullet point should be specific to {persona} concerns.
+    \nFormat as valid JSON only. Each bullet point should be specific to {persona} concerns.
     """
     
     # Make API call directly without rate limiting
@@ -210,39 +239,25 @@ def generate_solution_slide_content(product_name: str, problem_statement: str, p
     
     # Enhanced persona-specific solution focus
     persona_prompts = {
-        "Technical": """Focus on technical architecture, implementation approach, engineering solutions, and technical benefits. 
-        Emphasize scalability, performance, integration capabilities, and technical innovation.""",
-        
-        "Marketing": """Focus on customer value proposition, user benefits, market differentiation, and customer success. 
-        Emphasize customer outcomes, user experience improvements, and competitive advantages.""",
-        
-        "Executive": """Focus on business impact, strategic value, operational improvements, and competitive positioning. 
-        Emphasize ROI, efficiency gains, market opportunities, and strategic advantages.""",
-        
-        "Investor": """Focus on market opportunity, scalable solution, revenue potential, and competitive moats. 
-        Emphasize addressable market, growth potential, monetization strategy, and sustainable advantages.""",
-        
-        "Generic": """Focus on balanced technical and business value that appeals to multiple stakeholders."""
+        "Technical": "Focus on technical architecture, implementation approach, engineering solutions, and technical benefits. Emphasize scalability, performance, integration capabilities, and technical innovation.",
+        "Marketing": "Focus on customer value proposition, user benefits, market differentiation, and customer success. Emphasize customer outcomes, user experience improvements, and competitive advantages.",
+        "Executive": "Focus on business impact, strategic value, operational improvements, and competitive positioning. Emphasize ROI, efficiency gains, market opportunities, and strategic advantages.",
+        "Investor": "Focus on market opportunity, scalable solution, revenue potential, and competitive moats. Emphasize addressable market, growth potential, monetization strategy, and sustainable advantages.",
+        "Generic": "Focus on balanced technical and business value that appeals to multiple stakeholders."
     }
-    
     persona_specific = persona_prompts.get(persona, persona_prompts["Generic"])
-    
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(product_name, persona, "solution")
     prompt = f"""
-    Create a solution overview slide for {persona} audience for "{product_name}" that addresses:
-    "{problem_statement}"
-    
+    {improved_prompt}
     {persona_specific}
-    
-    Make the solution compelling and specific to {persona} decision-making criteria.
-    
-    Return a JSON object with these fields:
+    \nOriginal input: \"{problem_statement}\"
+    \nReturn a JSON object with these fields:
     - title: A compelling slide title introducing the solution (include product name, tailored for {persona})
     - paragraph: A focused paragraph (60-80 words) explaining how {product_name} solves the problem for {persona} audience
-    
-    The paragraph should clearly articulate value specific to {persona} professionals.
+    \nThe paragraph should clearly articulate value specific to {persona} professionals.
     Format as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -254,31 +269,24 @@ def generate_solution_slide_content(product_name: str, problem_statement: str, p
             "title": f"Introducing {product_name}",
             "paragraph": f"{product_name} is designed to address these challenges with an innovative approach that helps organizations achieve better outcomes."
         }
-    
     # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = f"Introducing {product_name}"
     if not content.get("paragraph"):
         content["paragraph"] = f"{product_name} is designed to address these challenges with an innovative approach that helps organizations achieve better outcomes."
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def generate_features_slide_content(key_features: List[str], persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate features slide content."""
     cache_key = f"features_{'_'.join(key_features[:3])}_{persona}"
-    
     # Return cached content if available and use_cache is True
     if use_cache and cache_key in _content_cache:
         return _content_cache[cache_key]
-    
     model = genai.GenerativeModel(MODEL_NAME)
-    
     # Limit to 5 features
     features_text = "\n".join(f"- {f}" for f in key_features[:5])
-    
     persona_specific = ""
     if persona == "Technical":
         persona_specific = "Focus on technical capabilities and specifications."
@@ -288,19 +296,17 @@ def generate_features_slide_content(key_features: List[str], persona: str, use_c
         persona_specific = "Focus on business impact and strategic advantages."
     elif persona == "Investor":
         persona_specific = "Focus on market differentiation and competitive advantages."
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(", ".join(key_features), persona, "features")
     prompt = f"""
-    Create a key features slide based on these features:
-    {features_text}
-    
+    {improved_prompt}
     {persona_specific}
-    
-    Return a JSON object with these fields:
+    \nOriginal input features:\n{features_text}
+    \nReturn a JSON object with these fields:
     - title: A slide title for key features
     - features: A refined list of the key features (keep the same features but enhance their descriptions)
-    
-    Each feature should be concise but clear. Format as valid JSON only.
+    \nEach feature should be concise but clear. Format as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -312,28 +318,22 @@ def generate_features_slide_content(key_features: List[str], persona: str, use_c
             "title": "Key Features",
             "features": key_features[:5]
         }
-    
     # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = "Key Features"
     if not content.get("features") or not isinstance(content.get("features"), list):
         content["features"] = key_features[:5]
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def generate_advantage_slide_content(competitive_advantage: str, persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate competitive advantage slide content."""
     cache_key = f"advantage_{competitive_advantage}_{persona}"
-    
     # Return cached content if available and use_cache is True
     if use_cache and cache_key in _content_cache:
         return _content_cache[cache_key]
-    
     model = genai.GenerativeModel(MODEL_NAME)
-    
     persona_specific = ""
     if persona == "Technical":
         persona_specific = "Focus on technical superiority and unique capabilities."
@@ -343,20 +343,17 @@ def generate_advantage_slide_content(competitive_advantage: str, persona: str, u
         persona_specific = "Focus on business impact, ROI, and strategic advantages."
     elif persona == "Investor":
         persona_specific = "Focus on market positioning, barriers to entry, and sustainable competitive edges."
-    
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(competitive_advantage, persona, "advantage")
     prompt = f"""
-    Create a competitive advantage slide based on this statement:
-    "{competitive_advantage}"
-    
+    {improved_prompt}
     {persona_specific}
-    
-    Return a JSON object with these fields:
+    \nOriginal input: \"{competitive_advantage}\"
+    \nReturn a JSON object with these fields:
     - title: A compelling slide title about competitive advantages
     - differentiators: An array of 3-4 key differentiators or advantages
-    
-    Make each differentiator concise but specific. Format as valid JSON only.
+    \nMake each differentiator concise but specific. Format as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -368,17 +365,14 @@ def generate_advantage_slide_content(competitive_advantage: str, persona: str, u
             "title": "Our Competitive Advantage",
             "differentiators": [s.strip() + "." for s in competitive_advantage.split(". ") if s.strip()][:3]
         }
-    
     # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = "Our Competitive Advantage"
     if not content.get("differentiators") or not isinstance(content.get("differentiators"), list):
         # Extract simple bullet points from the competitive advantage
         content["differentiators"] = [s.strip() + "." for s in competitive_advantage.split(". ") if s.strip()][:3]
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def generate_audience_slide_content(target_audience: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
@@ -440,13 +434,10 @@ def generate_audience_slide_content(target_audience: str, persona: str, use_cach
 def generate_cta_slide_content(call_to_action: str, product_name: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate call to action slide content."""
     cache_key = f"cta_{call_to_action}_{product_name}_{persona}"
-    
     # Return cached content if available and use_cache is True
     if use_cache and cache_key in _content_cache:
         return _content_cache[cache_key]
-    
     model = genai.GenerativeModel(MODEL_NAME)
-    
     persona_specific = ""
     if persona == "Technical":
         persona_specific = "Focus on technical next steps like demos, trials, or technical discussions."
@@ -456,22 +447,19 @@ def generate_cta_slide_content(call_to_action: str, product_name: str, persona: 
         persona_specific = "Focus on high-level business discussions, partnerships, and strategic decisions."
     elif persona == "Investor":
         persona_specific = "Focus on investment opportunities, funding rounds, or partnership discussions."
-    
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(call_to_action, persona, "cta")
     prompt = f"""
-    Create a call-to-action slide based on this CTA:
-    "{call_to_action}"
-    
-    Product name: {product_name}
+    {improved_prompt}
     {persona_specific}
-    
-    Return a JSON object with these fields:
+    \nOriginal input: \"{call_to_action}\"
+    Product name: {product_name}
+    \nReturn a JSON object with these fields:
     - title: An engaging slide title for the call to action
     - cta_text: A clear, compelling call-to-action statement
     - bullets: (optional) An array of 2-3 supporting points or next steps
-    
-    Format as valid JSON only.
+    \nFormat as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -484,47 +472,38 @@ def generate_cta_slide_content(call_to_action: str, product_name: str, persona: 
             "cta_text": call_to_action or f"Contact us to learn more about {product_name}",
             "bullets": ["Schedule a demo", "Start your free trial", "Speak with our experts"]
         }
-    
     # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = "Get Started Today"
     if not content.get("cta_text"):
         content["cta_text"] = call_to_action or f"Contact us to learn more about {product_name}"
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def generate_market_slide_content(target_audience: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate market opportunity slide content."""
     cache_key = f"market_{target_audience}_{persona}"
-    
     # Return cached content if available and use_cache is True
     if use_cache and cache_key in _content_cache:
         return _content_cache[cache_key]
-    
     model = genai.GenerativeModel(MODEL_NAME)
-    
     persona_specific = ""
     if persona == "Investor" or persona == "Executive":
         persona_specific = "Include specific market size numbers, growth rates, and market opportunity details."
-    
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(target_audience, persona, "market")
     prompt = f"""
-    Create a market opportunity slide for a product targeting this audience:
-    "{target_audience}"
-    
+    {improved_prompt}
     {persona_specific}
-    
-    Return a JSON object with these fields:
+    \nOriginal input: \"{target_audience}\"
+    \nReturn a JSON object with these fields:
     - title: A compelling slide title about the market opportunity
     - market_size: A specific market size figure with dollar amount and timeframe (e.g. "$25B by 2025")
     - growth_rate: Annual growth rate with percentage (e.g. "15% CAGR")
     - description: A brief paragraph about the market opportunity and trends
-    
-    Be specific and data-driven with realistic but impressive figures. Format as valid JSON only.
+    \nBe specific and data-driven with realistic but impressive figures. Format as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -538,7 +517,6 @@ def generate_market_slide_content(target_audience: str, persona: str, use_cache:
             "growth_rate": "15% CAGR",
             "description": "The market is experiencing significant growth as organizations increasingly recognize the need for innovative solutions in this space."
         }
-    
     # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = "Market Opportunity"
@@ -548,22 +526,17 @@ def generate_market_slide_content(target_audience: str, persona: str, use_cache:
         content["growth_rate"] = "15% CAGR"
     if not content.get("description"):
         content["description"] = "The market is experiencing significant growth as organizations increasingly recognize the need for innovative solutions in this space."
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def generate_roadmap_slide_content(product_name: str, persona: str, use_cache: bool = False) -> Dict[str, Any]:
     """Generate product roadmap slide content."""
     cache_key = f"roadmap_{product_name}_{persona}"
-    
     # Return cached content if available and use_cache is True
     if use_cache and cache_key in _content_cache:
         return _content_cache[cache_key]
-    
     model = genai.GenerativeModel(MODEL_NAME)
-    
     persona_specific = ""
     if persona == "Technical":
         persona_specific = "Focus on technical features, integrations, and architecture evolution."
@@ -573,21 +546,19 @@ def generate_roadmap_slide_content(product_name: str, persona: str, use_cache: b
         persona_specific = "Focus on strategic milestones, market expansion, and business objectives."
     elif persona == "Investor":
         persona_specific = "Focus on growth milestones, market expansion, and revenue phases."
-    
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(product_name, persona, "roadmap")
     prompt = f"""
-    Create a product roadmap slide for "{product_name}" with three clear phases.
-    
+    {improved_prompt}
     {persona_specific}
-    
-    Return a JSON object with these fields:
+    \nOriginal input: \"{product_name}\"
+    \nReturn a JSON object with these fields:
     - title: A slide title for the product roadmap (include product name)
     - phases: An array of 3 phase objects, each containing:
       - name: The phase name (e.g., "Phase 1: Foundation")
       - items: An array of 3-4 key deliverables or milestones for that phase
-    
-    Make the roadmap realistic and strategic. Format as valid JSON only.
+    \nMake the roadmap realistic and strategic. Format as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -612,11 +583,9 @@ def generate_roadmap_slide_content(product_name: str, persona: str, use_cache: b
                 }
             ]
         }
-    
     # Ensure correct fields exist
     if not content.get("title"):
         content["title"] = f"{product_name}: Product Roadmap"
-    
     # Ensure phases exist and have the right structure
     if not content.get("phases") or not isinstance(content.get("phases"), list):
         content["phases"] = [
@@ -639,41 +608,40 @@ def generate_roadmap_slide_content(product_name: str, persona: str, use_cache: b
             if not isinstance(phase, dict):
                 content["phases"][i] = {
                     "name": f"Phase {i+1}",
-                    "items": ["Feature 1", "Feature 2", "Feature 3"]
+                    "items": ["Milestone 1", "Milestone 2"]
                 }
-            elif "name" not in phase:
-                phase["name"] = f"Phase {i+1}"
-            elif "items" not in phase or not isinstance(phase["items"], list):
-                phase["items"] = ["Feature 1", "Feature 2", "Feature 3"]
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def generate_team_slide_content(company_name: str, persona: str, use_cache: bool = True) -> Dict[str, Any]:
     """Generate team slide content."""
     cache_key = f"team_{company_name}_{persona}"
-    
     # Return cached content if available and use_cache is True
     if use_cache and cache_key in _content_cache:
         return _content_cache[cache_key]
-    
     model = genai.GenerativeModel(MODEL_NAME)
-    
+    persona_specific = ""
+    if persona == "Technical":
+        persona_specific = "Focus on technical leadership and engineering expertise."
+    elif persona == "Marketing":
+        persona_specific = "Focus on customer success, marketing, and go-to-market leadership."
+    elif persona == "Executive":
+        persona_specific = "Focus on executive leadership, business strategy, and execution capability."
+    elif persona == "Investor":
+        persona_specific = "Focus on management experience, track record, and execution capability."
+    # --- Improved Prompting Logic ---
+    improved_prompt = rewrite_prompt_with_structure(company_name, persona, "team")
     prompt = f"""
-    Create a team slide for "{company_name}" with fictional leadership team members.
-    
-    Return a JSON object with these fields:
-    - title: A slide title for the team/leadership slide
-    - team_members: An array of 4 team member objects, each containing:
-      - name: The team member's name
-      - role: Their role or title
-    - tagline: A brief company tagline or mission statement
-    
-    Be professional and diverse. Format as valid JSON only.
+    {improved_prompt}
+    {persona_specific}
+    \nOriginal input: \"{company_name}\"
+    \nReturn a JSON object with these fields:
+    - title: A slide title for the team
+    - team_members: An array of 3-5 team member objects, each with name and role
+    - tagline: A short tagline about the team or company
+    \nFormat as valid JSON only.
     """
-    
     # Make API call directly without rate limiting
     try:
         response = model.generate_content(prompt)
@@ -682,7 +650,7 @@ def generate_team_slide_content(company_name: str, persona: str, use_cache: bool
         logger.error(f"Error generating team slide: {e}")
         # Provide fallback content
         content = {
-            "title": f"{company_name} Leadership Team",
+            "title": "Our Team",
             "team_members": [
                 {"name": "Alex Johnson", "role": "Chief Executive Officer"},
                 {"name": "Sam Washington", "role": "Chief Technology Officer"},
@@ -691,11 +659,6 @@ def generate_team_slide_content(company_name: str, persona: str, use_cache: bool
             ],
             "tagline": "Building innovative solutions for tomorrow's challenges"
         }
-    
-    # Ensure correct fields exist
-    if not content.get("title"):
-        content["title"] = f"{company_name} Leadership Team"
-    
     # Ensure team_members exist and have the right structure
     if not content.get("team_members") or not isinstance(content.get("team_members"), list):
         content["team_members"] = [
@@ -704,14 +667,11 @@ def generate_team_slide_content(company_name: str, persona: str, use_cache: bool
             {"name": "Jordan Smith", "role": "VP of Product"},
             {"name": "Taylor Rivera", "role": "VP of Customer Success"}
         ]
-    
     # Ensure tagline exists
     if not content.get("tagline"):
         content["tagline"] = "Building innovative solutions for tomorrow's challenges"
-    
     # Cache the result
     _content_cache[cache_key] = content
-    
     return content
 
 def extract_json_from_response(response_text: str) -> Dict[str, Any]:

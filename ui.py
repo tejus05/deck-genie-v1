@@ -100,15 +100,147 @@ def render_ui():
                     
                 st.markdown("### Presentation Customization")
                 
-                # Enhanced persona options
-                persona_options = ["Generic", "Technical", "Marketing", "Executive", "Investor"]
-                persona = st.selectbox(
-                    "Target Persona",
-                    options=persona_options,
-                    index=persona_options.index(form_values.get("persona", "Generic")) if "persona" in form_values else 0,
-                    help="Choose the primary audience persona for language adaptation"
+                # Enhanced persona options with descriptions
+                st.markdown("#### Target Persona")
+                st.markdown("""
+                Choose who your presentation is primarily designed for. The content, language, and focus will be automatically adapted to match their needs:
+                """)
+                
+                # Define persona options with icons and descriptions
+                persona_options = {
+                    "Generic": {
+                        "icon": "🎯",
+                        "desc": "Balanced content suitable for diverse audiences",
+                        "color": "#6C757D"
+                    },
+                    "Technical": {
+                        "icon": "⚙️",
+                        "desc": "Focus on technical architecture, specifications, and implementation details",
+                        "color": "#0066CC"
+                    },
+                    "Marketing": {
+                        "icon": "📢",
+                        "desc": "Emphasis on customer benefits, market positioning, and competitive advantages",
+                        "color": "#28A745"
+                    },
+                    "Executive": {
+                        "icon": "👔",
+                        "desc": "Strategic value, business impact, and high-level insights",
+                        "color": "#6F42C1"
+                    },
+                    "Investor": {
+                        "icon": "💰",
+                        "desc": "Market opportunity, growth potential, and financial metrics",
+                        "color": "#DC3545"
+                    }
+                }
+
+                # Initialize session state for persona if not exists
+                if 'selected_persona' not in st.session_state:
+                    st.session_state.selected_persona = "Generic"
+
+                # Custom CSS for the persona selection
+                st.markdown("""
+                <style>
+                    div[data-testid="stRadio"] > div {
+                        display: flex;
+                        gap: 1rem;
+                        flex-wrap: wrap;
+                    }
+                    div[data-testid="stRadio"] > div > label {
+                        flex: 1;
+                        min-width: 200px;
+                        padding: 1.2rem !important;
+                        border-radius: 10px;
+                        margin: 0.5rem 0;
+                        transition: all 0.2s ease;
+                        cursor: pointer;
+                        display: flex !important;
+                        align-items: center !important;
+                        font-size: 1.3rem !important;
+                        font-weight: 600 !important;
+                        color: #1E1E1E !important;
+                        letter-spacing: 0.2px;
+                        border: 1px solid #E0E0E0;
+                        background: transparent !important;
+                    }
+                    div[data-testid="stRadio"] > div > label:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        border-color: #FF4B4B;
+                    }
+                    div[data-testid="stRadio"] > div > label[data-checked="true"] {
+                        border: 2px solid #FF4B4B !important;
+                        color: #000000 !important;
+                        font-weight: 700 !important;
+                    }
+                    div[data-testid="stRadio"] > div > label > div {
+                        display: flex !important;
+                        align-items: center !important;
+                        gap: 0.75rem !important;
+                        padding: 0.5rem !important;
+                        font-size: 1.3rem !important;
+                    }
+                    /* Style for the emoji icons */
+                    div[data-testid="stRadio"] span.emoji {
+                        font-size: 1.5rem !important;
+                        margin-right: 0.75rem !important;
+                        display: inline-block !important;
+                    }
+                    /* Ensure radio inputs are clickable but invisible */
+                    div[data-testid="stRadio"] input[type="radio"] {
+                        opacity: 0;
+                        position: absolute;
+                        width: 100%;
+                        height: 100%;
+                        cursor: pointer;
+                        z-index: 1;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # Create simple radio options with icons and names
+                radio_options = [f"{details['icon']}  {name}" for name, details in persona_options.items()]
+                
+                # Add spacing before radio group
+                st.markdown('<div style="height: 1rem"></div>', unsafe_allow_html=True)
+
+                # Create the radio selection without on_change callback
+                selected_option = st.radio(
+                    "Select Target Persona",
+                    options=radio_options,
+                    index=radio_options.index(f"{persona_options[st.session_state.selected_persona]['icon']}  {st.session_state.selected_persona}"),
+                    label_visibility="collapsed",
+                    horizontal=True,
+                    key="persona_selector"
                 )
-                    
+
+                # Extract the selected persona name (remove the emoji)
+                current_persona = selected_option.split("  ", 1)[1].strip()
+                current_persona_details = persona_options[current_persona]
+                
+                # Show description of selected persona with enhanced visibility
+                st.markdown(f"""
+                <div style="margin-top: 1rem; padding: 1.2rem; border-radius: 8px; background-color: #F8F9FA; border: 1px solid #E9ECEF;">
+                    <div style="font-size: 1.2rem; margin-bottom: 0.5rem;">
+                        <span style="color: {current_persona_details['color']}; font-size: 1.5rem; vertical-align: middle;">
+                            {current_persona_details['icon']}
+                        </span>
+                        <strong style="color: #000000; margin-left: 0.5rem; font-size: 1.3rem; vertical-align: middle;">
+                            {current_persona}
+                        </strong>
+                    </div>
+                    <div style="color: #2C3E50; font-size: 1rem; line-height: 1.6; margin-top: 0.5rem;">
+                        {current_persona_details['desc']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Update form values with selected persona
+                form_values["persona"] = current_persona
+                
+                # Move slide count after persona selection
+                st.markdown("#### Presentation Length")
                 slide_count = st.slider(
                     "Number of Slides",
                     min_value=5, max_value=10,
@@ -192,7 +324,7 @@ def render_ui():
                             generate_presentation_content,
                             (company_name, product_name, target_audience, problem_statement, 
                              features_list, competitive_advantage, call_to_action, 
-                             persona, slide_count),
+                             current_persona, slide_count),
                             progress_bar, progress_status, progress_detail,
                             preview_generator,
                             None  # Pass None for slide_placeholders as it's not used
